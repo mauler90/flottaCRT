@@ -1,0 +1,1509 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Gestione Trasporti Container</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Helvetica,sans-serif;font-size:12.5px;line-height:1.3;background:#e8edf4}
+.app{display:flex;height:100vh;overflow:hidden}
+/* Sidebar */
+.sb{width:195px;flex-shrink:0;background:#0c1c2e;display:flex;flex-direction:column}
+.sb-top{padding:15px 13px 11px;border-bottom:1px solid rgba(255,255,255,.06)}
+.sb-logo{color:#f59e0b;font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+.sb-name{color:rgba(255,255,255,.65);font-size:12.5px;font-weight:700;margin-top:2px}
+.sb-nav{flex:1;padding:7px 5px;display:flex;flex-direction:column;gap:1px;overflow-y:auto}
+.ni{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:6px;cursor:pointer;color:rgba(255,255,255,.4);font-size:12px;font-weight:500;border:none;background:none;width:100%;text-align:left;transition:.1s;position:relative}
+.ni:hover{background:rgba(255,255,255,.06);color:rgba(255,255,255,.75)}
+.ni.on{background:rgba(245,158,11,.15);color:#f59e0b}
+.badge-num{position:absolute;right:7px;background:#ef4444;color:#fff;font-size:10px;font-weight:700;border-radius:999px;padding:1px 5px;min-width:16px;text-align:center}
+.sb-bot{padding:7px 5px;border-top:1px solid rgba(255,255,255,.06)}
+.sb-user{padding:4px 8px;margin-bottom:2px}
+.sb-user strong{display:block;color:rgba(255,255,255,.65);font-size:12px}
+.sb-user small{color:rgba(255,255,255,.3);font-size:10.5px}
+.sb-sav{display:flex;align-items:center;gap:4px;font-size:11px;color:rgba(255,255,255,.3);padding:3px 8px}
+.sb-sav.hidden{display:none}
+@keyframes spin{to{transform:rotate(360deg)}}.spin{animation:spin .7s linear infinite;display:inline-block}
+/* Main */
+.main{flex:1;overflow-y:auto;padding:14px 18px;min-width:0}
+.ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px}
+.pt{font-size:15px;font-weight:700;color:#0c1c2e}
+.btn{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:5px;font-size:12px;font-weight:500;cursor:pointer;border:none;transition:.1s;white-space:nowrap;line-height:1}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.bp{background:#0c1c2e;color:#fff}.bp:hover:not(:disabled){background:#1a3050}
+.ba{background:#f59e0b;color:#fff}.ba:hover:not(:disabled){background:#d97706}
+.bd{background:#ef4444;color:#fff}.bd:hover:not(:disabled){background:#dc2626}
+.bg{background:#f0f4f8;color:#475569;border:1px solid #dde3eb}.bg:hover:not(:disabled){background:#e2e8f0}
+.bs{padding:4px 8px;font-size:11.5px}.bxs{padding:3px 6px;font-size:11px}
+/* Card */
+.card{background:#fff;border-radius:7px;border:1px solid #e2e8f0;overflow:hidden;margin-bottom:12px}
+/* Form */
+.fg{margin-bottom:9px}
+.fl{font-size:10.5px;font-weight:600;color:#475569;margin-bottom:3px;display:block;text-transform:uppercase;letter-spacing:.04em}
+input,select,textarea{width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:12.5px;color:#1e293b;background:#fff;outline:none;transition:.1s;font-family:inherit}
+input:focus,select:focus,textarea:focus{border-color:#f59e0b;box-shadow:0 0 0 2px rgba(245,158,11,.1)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+/* Table std */
+table.std{width:100%;border-collapse:collapse}
+table.std th{font-size:10.5px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em;padding:8px 10px;text-align:left;border-bottom:1px solid #e2e8f0;background:#f8fafc;white-space:nowrap}
+table.std td{padding:7px 10px;font-size:12.5px;color:#334155;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+table.std tr:last-child td{border-bottom:none}
+table.std tr:hover td{background:#fafbfd}
+.bdg{display:inline-flex;align-items:center;padding:2px 7px;border-radius:999px;font-size:11px;font-weight:600}
+/* Modal */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:500;padding:16px}
+.mod{background:#fff;border-radius:9px;width:100%;max-width:560px;max-height:92vh;overflow-y:auto;box-shadow:0 20px 50px rgba(0,0,0,.2)}
+.mod.wide{max-width:700px}
+.mh{padding:11px 15px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:1}
+.mt{font-size:13.5px;font-weight:700;color:#0c1c2e}
+.mb{padding:15px}
+.mf{padding:9px 15px;border-top:1px solid #f1f5f9;display:flex;justify-content:flex-end;gap:7px;position:sticky;bottom:0;background:#fff}
+.sep{border:none;border-top:1px solid #f1f5f9;margin:9px 0}
+.sect{font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;margin:10px 0 5px}
+.empty{text-align:center;padding:36px;color:#94a3b8}
+.err-b{background:#fef2f2;border:1px solid #fecaca;border-radius:5px;padding:7px 10px;font-size:12px;color:#dc2626;margin-bottom:9px}
+.info-b{background:#eff6ff;border:1px solid #bfdbfe;border-radius:5px;padding:9px 11px;font-size:12px;color:#1e40af;margin-bottom:10px;line-height:1.5}
+.info-b code{background:#dbeafe;padding:1px 3px;border-radius:3px;font-family:monospace;font-size:11px}
+/* Scadenze */
+.al{padding:8px 12px;border-radius:6px;margin-bottom:5px;border-left:3px solid;display:flex;align-items:center;gap:8px;font-size:12px}
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:12px}
+.sc{background:#fff;border-radius:7px;border:1px solid #e2e8f0;padding:11px 13px}
+.sc-l{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
+.sc-v{font-size:20px;font-weight:700;color:#0c1c2e}
+/* Setup/Login */
+.full{min-height:100vh;background:#0c1c2e;display:flex;align-items:center;justify-content:center;padding:20px}
+.setup-c{background:#fff;border-radius:11px;padding:26px;width:100%;max-width:450px}
+.login-c{background:#fff;border-radius:11px;padding:28px;width:100%;max-width:330px}
+.screen-logo{color:#f59e0b;font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;margin-bottom:3px}
+.screen-title{font-size:17px;font-weight:700;color:#0c1c2e;margin-bottom:4px}
+.screen-sub{font-size:12px;color:#64748b;margin-bottom:18px}
+.mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:16px}
+.mode-btn{padding:11px;border-radius:7px;border:2px solid #e2e8f0;cursor:pointer;text-align:center;transition:.12s;background:#fff}
+.mode-btn.sel{border-color:#f59e0b;background:#fffbeb}
+.mode-btn strong{display:block;font-size:12.5px;font-weight:700;color:#0c1c2e;margin-top:3px;margin-bottom:1px}
+.mode-btn span{font-size:11px;color:#64748b}
+/* ════════════════════ GIORNALIERO TABLE ════════════════════ */
+.giorn-outer{overflow-x:auto;background:#fff;border-radius:7px;border:1px solid #e2e8f0;margin-bottom:12px}
+.giorn-table{border-collapse:collapse;white-space:nowrap;font-size:12px;table-layout:fixed;min-width:1370px}
+.giorn-table thead th{position:sticky;top:0;z-index:10;font-size:9.5px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.04em;padding:5px 4px;text-align:center;background:#f8fafc;border-bottom:2px solid #e2e8f0;border-right:1px solid #eef0f4}
+.giorn-table td{padding:1px 2px;border-bottom:1px solid #f0f2f5;border-right:1px solid #f5f5f7;vertical-align:middle;overflow:hidden}
+.giorn-table tr:last-child td{border-bottom:none}
+/* Porto section headers */
+.porto-hr td{padding:0;border-bottom:2px solid #e2e8f0}
+.porto-lbl{display:flex;align-items:center;gap:8px;padding:5px 10px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em}
+.p-LI .porto-lbl{background:#eff6ff;color:#1e40af;border-left:3px solid #3b82f6}
+.p-SP .porto-lbl{background:#f0fdf4;color:#166534;border-left:3px solid #22c55e}
+.p-GE .porto-lbl{background:#fff7ed;color:#9a3412;border-left:3px solid #f97316}
+.p-ASS .porto-lbl{background:#f8fafc;color:#64748b;border-left:3px solid #94a3b8}
+.p-cnt{background:rgba(0,0,0,.07);border-radius:999px;padding:1px 6px;font-size:9.5px}
+/* Row states */
+.g-row:hover td{background:#fafbfc}
+.g-row.v1lv td.v1c{background:#fefce8!important}
+.g-row.v1lv td.v1c:hover{background:#fef9c3!important}
+.g-row.v2lv td.v2c{background:#fefce8!important}
+.g-row.v2lv td.v2c:hover{background:#fef9c3!important}
+.g-row.assente td{background:#f9fafb;opacity:.65}
+/* Cell inputs */
+.ci{border:none;background:transparent;width:100%;padding:3px 4px;font-size:12px;color:#1e293b;font-family:inherit;border-radius:2px}
+.ci:focus{background:#fffbeb;outline:2px solid #f59e0b;outline-offset:-1px}
+.cs{border:none;background:transparent;padding:3px 2px;font-size:12px;color:#1e293b;font-family:inherit;cursor:pointer;width:100%;border-radius:2px}
+.cs:focus{background:#fffbeb;outline:2px solid #f59e0b;outline-offset:-1px}
+.ck{cursor:pointer;width:15px;height:15px;accent-color:#f59e0b;display:block;margin:auto}
+/* Column widths */
+.c-ord{width:28px;min-width:24px}
+.c-num{width:26px;min-width:22px}
+.c-aut{width:115px;min-width:95px}
+.c-tg{width:72px;min-width:60px}
+.c-po{width:38px;min-width:34px}
+.c-ore{width:55px;min-width:48px}
+.c-ie{width:30px;min-width:28px}
+.c-cnt{width:62px;min-width:56px}
+.c-vg{width:135px;min-width:100px}
+.c-nt{width:75px;min-width:60px}
+.c-cp{width:50px;min-width:44px}
+.c-fl{width:26px;min-width:22px}
+.c-sep{width:18px;background:linear-gradient(to right,#e2e8f0,#f1f5f9,#e2e8f0);padding:0!important}
+.c-riut{width:68px;min-width:60px}
+.riut-gd{background:#fff7ed;border-left:3px solid #f97316}
+.matt-btn{border:none;background:none;cursor:pointer;font-size:14px;font-weight:900;color:#d1d5db;line-height:1;padding:0 2px}
+.matt-btn.on{color:#dc2626}
+.matt-lbl{font-weight:900;font-size:18px;color:#dc2626;margin-right:4px;line-height:1}
+.ritira-btn{border:1px solid #e2e8f0;border-radius:3px;background:#f8fafc;cursor:pointer;font-size:10px;padding:1px 3px;flex-shrink:0;color:#94a3b8;line-height:1}
+.ritira-txt{color:#dc2626;font-size:10px;font-weight:600;margin-top:1px;white-space:normal;line-height:1.2}
+.ritira-btn.on{background:#fef9c3;color:#92400e;border-color:#fde68a}
+#ritira-pop{position:fixed;background:#fff;border:1px solid #e2e8f0;border-radius:7px;padding:10px 12px;box-shadow:0 6px 20px rgba(0,0,0,.15);z-index:600;min-width:220px}
+/* Targa badges */
+.tg-m{font-family:monospace;font-weight:700;font-size:11px;background:#fef9c3;color:#713f12;padding:1px 4px;border-radius:2px;display:inline-block}
+.tg-r{font-family:monospace;font-weight:700;font-size:11px;background:#fce7f3;color:#831843;padding:1px 4px;border-radius:2px;display:inline-block}
+/* IE badges */
+.ie-I{background:#eff6ff;color:#1d4ed8;font-weight:700;padding:1px 4px;border-radius:3px;font-size:11px}
+.ie-E{background:#fff7ed;color:#c2410c;font-weight:700;padding:1px 4px;border-radius:3px;font-size:11px}
+/* Autista cell */
+.a-nome{font-weight:700;font-size:12px;color:#0c1c2e;line-height:1.2}
+.a-sub{font-size:10px;color:#94a3b8;margin-top:1px}
+.a-ass{font-size:10px;font-weight:600;color:#dc2626;background:#fef2f2;padding:1px 4px;border-radius:3px;display:inline-block}
+/* Ord buttons */
+.ord-bs{display:flex;flex-direction:column;align-items:center;gap:0}
+.ord-b{border:none;background:none;cursor:pointer;padding:1px 3px;color:#d1d5db;font-size:9px;line-height:1}
+.ord-b:hover{color:#475569}
+/* Date nav */
+.date-nav{display:flex;align-items:center;gap:6px}
+.dt-in{width:140px!important;padding:5px 8px!important;font-weight:600!important;font-size:13px!important;border:1px solid #dde3eb!important;border-radius:5px}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<datalist id="note-sugg">
+  <option value="RIUT">
+  <option value="EX MO">
+  <option value="EX PG">
+  <option value="EX FI">
+  <option value="EX BO">
+  <option value="EX RM">
+  <option value="EX MI">
+  <option value="EX NA">
+  <option value="EX VR">
+  <option value="EX PA">
+</datalist>
+<script>
+'use strict';
+// ══════════ CONSTANTS ══════════
+const PORTI={LI:'Livorno',SP:'La Spezia',GE:'Genova'};
+const PK=['LI','SP','GE'];
+const CNT_TYPES=['20 BX','20 HC','20 OT','20 FR','20 RF','40 BX','40 HC','40 OT','40 FR','40 RF','45 HC'];
+const ASS_TYPES=['Ferie','Permesso','Malattia','Visita medica','Sospensione'];
+const PAT_TYPES=['B','C','CE','C1','C1E','D','DE'];
+const GIST_FILE='trasporti_container.json';
+const LS_CFG='tc_cfg2', LS_SESS='tc_sess2', LS_DATA='tc_data2';
+
+// ══════════ STATE ══════════
+const S={phase:'init',tab:'giornaliero',cfg:null,user:null,data:null,saving:false,date:td(),modal:null,modalData:null,search:{}};
+
+function td(){return new Date().toISOString().split('T')[0];}
+function offDate(d,n){const dt=new Date(d);dt.setDate(dt.getDate()+n);return dt.toISOString().split('T')[0];}
+
+// ══════════ DEFAULT DATA ══════════
+function defData(){return{
+  autisti:[],motrici:[],rimorchi:[],
+  compagnie:[
+    {id:'c1',codice:'MSC',nome:'Mediterranean Shipping Company'},
+    {id:'c2',codice:'HL',nome:'Hapag-Lloyd'},
+    {id:'c3',codice:'CMA',nome:'CMA CGM'},
+    {id:'c4',codice:'ONE',nome:'Ocean Network Express'},
+    {id:'c5',codice:'EVG',nome:'Evergreen'},
+    {id:'c6',codice:'MAE',nome:'Maersk'},
+    {id:'c7',codice:'COS',nome:'COSCO Shipping'},
+    {id:'c8',codice:'YML',nome:'Yang Ming'},
+    {id:'c9',codice:'PIL',nome:'Pacific International Lines'},
+    {id:'c10',codice:'HMM',nome:'Hyundai Merchant Marine'},
+    {id:'c11',codice:'ZIM',nome:'ZIM Integrated Shipping'},
+  ],
+  assenze:[],giornaliero:{},
+  users:[
+    {id:'u1',username:'admin',password:'admin',role:'admin',nome:'Amministratore'},
+    {id:'u2',username:'viewer',password:'viewer',role:'reader',nome:'Visualizzatore'},
+  ]
+};}
+
+// ══════════ HELPERS ══════════
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
+function fd(d){if(!d)return'—';const[y,m,g]=d.split('-');return`${g}/${m}/${y}`;}
+function dTo(d){if(!d)return null;return Math.ceil((new Date(d)-new Date())/86400000);}
+function eb(days){
+  if(days===null)return{bg:'#f1f5f9',c:'#94a3b8',t:'—'};
+  if(days<0)return{bg:'#fef2f2',c:'#dc2626',t:`Scad.${Math.abs(days)}g`};
+  if(days<=30)return{bg:'#fef2f2',c:'#dc2626',t:`${days}gg`};
+  if(days<=60)return{bg:'#fffbeb',c:'#d97706',t:`${days}gg`};
+  return{bg:'#f0fdf4',c:'#16a34a',t:`${days}gg`};
+}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function $id(id){return document.getElementById(id);}
+function isAss(aid,date,assenze){return(assenze||[]).find(a=>a.autista_id===aid&&a.data_inizio<=date&&a.data_fine>=date);}
+function getMTarga(a){if(!a.motrice_id)return'';const m=(S.data.motrici||[]).find(x=>x.id===a.motrice_id);return m?m.targa:'';}
+function getRTarga(a){if(!a.rimorchio_id)return'';const r=(S.data.rimorchi||[]).find(x=>x.id===a.rimorchio_id);return r?r.targa:'';}
+function getCC(cid){if(!cid)return'';const c=(S.data.compagnie||[]).find(x=>x.id===cid);return c?c.codice:'';}
+function canEdit(tab){
+  if(!S.user)return false;
+  if(S.user.role==='admin')return true;
+  if(S.user.role==='reader')return false;
+  return !!(S.user.permissions&&S.user.permissions[tab]);
+}
+function nextWorkingDay(date){
+  const d=new Date(date+'T12:00:00');
+  do{d.setDate(d.getDate()+1);}while(d.getDay()===0||d.getDay()===6);
+  return d.toISOString().split('T')[0];
+}
+function countAlerts(){
+  if(!S.data)return 0;
+  let n=0;
+  (S.data.autisti||[]).filter(a=>a.attivo!==false).forEach(a=>{
+    [a.patente_scad,a.visita_scad].forEach(d=>{const x=dTo(d);if(x!==null&&x<=(getScadPrefs().soglie.critico||30))n++;});
+  });
+  (S.data.motrici||[]).forEach(m=>[m.rev_scad,m.ass_scad,m.tach_scad].forEach(d=>{const x=dTo(d);if(x!==null&&x<=(getScadPrefs().soglie.critico||30))n++;}));
+  (S.data.rimorchi||[]).forEach(r=>[r.rev_scad,r.ass_scad].forEach(d=>{const x=dTo(d);if(x!==null&&x<=(getScadPrefs().soglie.critico||30))n++;}));
+  return n;
+}
+
+// ══════════ GIST API ══════════
+async function gLoad(tok,id){
+  const r=await fetch(`https://api.github.com/gists/${id}`,{headers:{Authorization:`token ${tok}`}});
+  if(!r.ok)throw new Error(`GitHub ${r.status}`);
+  const g=await r.json();const f=g.files[GIST_FILE];
+  return f?JSON.parse(f.content):null;
+}
+async function gSave(tok,id,data){
+  const r=await fetch(`https://api.github.com/gists/${id}`,{
+    method:'PATCH',headers:{Authorization:`token ${tok}`,'Content-Type':'application/json'},
+    body:JSON.stringify({files:{[GIST_FILE]:{content:JSON.stringify(data,null,2)}}})
+  });
+  if(!r.ok)throw new Error(`Save ${r.status}`);
+}
+async function gCreate(tok){
+  const r=await fetch('https://api.github.com/gists',{
+    method:'POST',headers:{Authorization:`token ${tok}`,'Content-Type':'application/json'},
+    body:JSON.stringify({description:'Trasporti Container',public:false,files:{[GIST_FILE]:{content:JSON.stringify(defData(),null,2)}}})
+  });
+  if(!r.ok)throw new Error(`Create ${r.status}`);
+  return(await r.json()).id;
+}
+
+// ══════════ PERSIST ══════════
+let saveTimer=null;
+function scheduleSave(data){
+  if(saveTimer)clearTimeout(saveTimer);
+  showSaving(true);
+  saveTimer=setTimeout(()=>doSave(data),1000);
+}
+async function doSave(data){
+  try{
+    if(S.cfg&&S.cfg.mode==='gist')await gSave(S.cfg.token,S.cfg.gistId,data);
+    else localStorage.setItem(LS_DATA,JSON.stringify(data));
+  }catch(e){alert('Errore salvataggio: '+e.message);}
+  showSaving(false);
+}
+function showSaving(v){S.saving=v;const el=$id('sv-ind');if(el)el.classList.toggle('hidden',!v);}
+
+// ══════════ RENDER ENGINE ══════════
+function render(){
+  if(S.phase==='init'){$id('root').innerHTML='<div class="full"><div style="color:rgba(255,255,255,.4);font-size:14px">Caricamento...</div></div>';return;}
+  if(S.phase==='setup'){$id('root').innerHTML=renderSetup();return;}
+  if(S.phase==='login'){$id('root').innerHTML=renderLogin();return;}
+  $id('root').innerHTML=renderApp();
+  if(S.modal)renderModal();
+}
+
+function renderApp(){
+  const alerts=countAlerts();
+  const nav=[
+    {id:'giornaliero',ic:'📋',lb:'Giornaliero'},
+    {id:'autisti',ic:'👤',lb:'Autisti'},
+    {id:'assenze',ic:'📅',lb:'Assenze'},
+    {id:'motrici',ic:'🚛',lb:'Motrici'},
+    {id:'rimorchi',ic:'🚌',lb:'Rimorchi'},
+    {id:'compagnie',ic:'🚢',lb:'Compagnie'},
+    {id:'scadenze',ic:'⚠️',lb:'Scadenze',badge:alerts},
+    {id:'impostazioni',ic:'⚙️',lb:'Impostazioni'},
+  ];
+  let content='';
+  if(S.tab==='giornaliero')content=renderGiorn();
+  else if(S.tab==='autisti')content=renderAutisti();
+  else if(S.tab==='assenze')content=renderAssenze();
+  else if(S.tab==='motrici')content=renderMotrici();
+  else if(S.tab==='rimorchi')content=renderRimorchi();
+  else if(S.tab==='compagnie')content=renderCompagnie();
+  else if(S.tab==='scadenze')content=renderScadenze();
+  else if(S.tab==='impostazioni')content=renderImpost();
+  return `<div class="app">
+    <div class="sb">
+      <div class="sb-top"><img src="data:image/png;base64,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" style="width:100%;max-width:160px;display:block;margin-bottom:6px;border-radius:3px" alt="CRT"><div class="sb-name">Gestione Flotta</div></div>
+      <nav class="sb-nav">${nav.map(n=>`<button class="ni${S.tab===n.id?' on':''}" data-act="tab" data-tab="${n.id}"><span>${n.ic}</span><span>${n.lb}</span>${n.badge?`<span class="badge-num">${n.badge}</span>`:''}</button>`).join('')}</nav>
+      <div class="sb-bot">
+        <div class="sb-user"><strong>${esc(S.user.nome)}</strong><small>${S.user.role==='admin'?'Amministratore':'Solo lettura'}</small></div>
+        <div style="padding:3px 8px;font-size:9.5px;color:rgba(255,255,255,.2);margin-bottom:3px">© Vittorio Zingoni 2026</div>
+        <div id="sv-ind" class="sb-sav${S.saving?'':' hidden'}"><span class="spin">↻</span> Salvataggio...</div>
+      </div>
+    </div>
+    <div class="main">${content}</div>
+  </div><div id="modal-container"></div>`;
+}
+
+// ══════════ GIORNALIERO ══════════
+function renderGiorn(){
+  const isAdmin=canEdit('giornaliero');
+  const date=S.date;
+  const dd=S.data.giornaliero[date]||{rows:{},porto_overrides:{},order:[]};
+  const autisti=(S.data.autisti||[]).filter(a=>a.attivo!==false);
+  const prevDate=offDate(date,-1);
+  const prevDD=S.data.giornaliero[prevDate]||{rows:{},porto_overrides:{}};
+  const isMonday=new Date(date).getDay()===1;
+  const enriched=autisti.map(a=>{
+    const ass=isAss(a.id,date,S.data.assenze||[]);
+    // Porto persistence: today override > last trip porto from yesterday > default porto
+    let porto;
+    if(dd.porto_overrides[a.id]){
+      porto=dd.porto_overrides[a.id];
+    }else if(!isMonday){
+      const pR=prevDD.rows[a.id];
+      const lastPorto=pR?(pR.v2&&pR.v2.porto?pR.v2.porto:pR.v1&&pR.v1.porto?pR.v1.porto:null):null;
+      porto=lastPorto||prevDD.porto_overrides[a.id]||a.porto||'LI';
+    }else{
+      porto=a.porto||'LI';
+    }
+    const sr=dd.rows[a.id]||{};
+    const prevRow=prevDD.rows[a.id];
+    const hasPrefill=prevRow&&prevRow.riut==='GD'&&(!sr.v1||(!sr.v1.ie&&!sr.v1.dest&&!sr.v1.comp));
+    // Motrice/rimorchio: use saved, or last used, or archive default
+    const defMotrice=sr.motrice!==undefined?sr.motrice:(a.last_motrice||getMTarga(a));
+    const defRimorchio=sr.rimorchio!==undefined?sr.rimorchio:(a.last_rimorchio||getRTarga(a));
+    const row={
+      motrice:defMotrice,rimorchio:defRimorchio,
+      riut:sr.riut||'',riut_dest:sr.riut_dest||'',mattino:sr.mattino||false,
+      v1:{porto:porto,ora:'',ie:'',container:'',dest:'',note:'',comp:'',lv:false,ritira:'',...(sr.v1||{}),
+        ...(hasPrefill?{ie:'E',container:prevRow.v1&&prevRow.v1.container||'',comp:prevRow.v1&&prevRow.v1.comp||'',dest:prevRow.riut_dest||''}:{})
+      },
+      v2:{porto:'',ora:'',ie:'',container:'',dest:'',note:'',comp:'',lv:false,ritira:'',...(sr.v2||{})},
+    };
+    return{...a,ass,porto,row};
+  });
+  const order=dd.order||[];
+  enriched.sort((a,b)=>{
+    const ia=order.indexOf(a.id),ib=order.indexOf(b.id);
+    if(ia>=0&&ib>=0)return ia-ib;
+    if(ia>=0)return -1;if(ib>=0)return 1;
+    return(a.cognome+a.nome).localeCompare(b.cognome+b.nome);
+  });
+  const assenti=[],byPorto={};
+  enriched.forEach(a=>{if(a.ass)assenti.push(a);else{if(!byPorto[a.porto])byPorto[a.porto]=[];byPorto[a.porto].push(a);}});
+  const cols=isAdmin?23:22;
+  const thH=(lb,cls)=>`<th class="${cls}">${lb}</th>`;
+  let html=`<div class="ph">
+    <span class="pt">Giornaliero</span>
+    <div class="date-nav">
+      <button class="btn bg bs" data-act="prevDay">◀</button>
+      <input type="date" class="dt-in" value="${date}" onchange="changeDate(this.value)">
+      <button class="btn bg bs" data-act="nextDay">▶</button>
+      <button class="btn bg bs" data-act="goToday">Oggi</button>
+    </div>
+  </div>
+  <div class="giorn-outer"><table class="giorn-table">
+    <thead><tr>
+      ${isAdmin?`<th class="c-ord"></th>`:''}
+      ${thH('#','c-num')}${thH('AUTISTA','c-aut')}${thH('MOTRICE','c-tg')}${thH('Rimorchio','c-tg')}
+      ${thH('Porto','c-po')}${thH('ORE','c-ore')}${thH('I/E','c-ie')}${thH('Cntr','c-cnt')}${thH('VIAGGIO','c-vg')}${thH('NOTE','c-nt')}${thH('Carrier','c-cp')}${thH('✓','c-fl')}${thH('RIUT','c-riut')}
+      <th class="c-sep"></th>
+      ${thH('Porto','c-po')}${thH('ORE','c-ore')}${thH('I/E','c-ie')}${thH('Cntr','c-cnt')}${thH('VIAGGIO','c-vg')}${thH('NOTE','c-nt')}${thH('Carrier','c-cp')}${thH('✓','c-fl')}
+    </tr></thead><tbody>`;
+  PK.forEach(porto=>{
+    const list=byPorto[porto];
+    if(!list||!list.length)return;
+    html+=`<tr class="porto-hr p-${porto}"><td colspan="${cols}"><div class="porto-lbl">⚓ ${PORTI[porto]} (${porto}) <span class="p-cnt">${list.length}</span></div></td></tr>`;
+    list.forEach((a,i)=>{html+=renderGRow(a,i,list.length,isAdmin,date);});
+  });
+  if(assenti.length){
+    html+=`<tr class="porto-hr p-ASS"><td colspan="${cols}"><div class="porto-lbl">🔴 Non disponibili <span class="p-cnt">${assenti.length}</span></div></td></tr>`;
+    assenti.forEach(a=>{
+      html+=`<tr class="g-row assente">${isAdmin?'<td class="c-ord"></td>':''}<td class="c-num"></td>
+      <td class="c-aut" style="padding:3px 5px"><div class="a-nome">${esc(a.cognome)} ${esc(a.nome)}</div><div class="a-ass">${esc(a.ass.tipo)}</div></td>
+      <td colspan="${isAdmin?20:19}" style="color:#94a3b8;font-style:italic;font-size:11px;padding:5px 10px">${esc(a.ass.tipo)}${a.ass.note?' — '+esc(a.ass.note):''} (${fd(a.ass.data_inizio)} → ${fd(a.ass.data_fine)})</td></tr>`;
+    });
+  }
+  if(autisti.length===0){html+=`<tr><td colspan="${cols}" class="empty">Nessun autista in anagrafica. <button class="btn ba bs" data-act="tab" data-tab="autisti" style="margin-left:8px">Aggiungi autisti</button></td></tr>`;}
+  html+=`</tbody></table></div>`;
+  return html;
+}
+
+function renderGRow(a,idx,total,isAdmin,date){
+  const r=a.row,v1=r.v1||{},v2=r.v2||{};
+  const d=`data-aid="${a.id}" data-dt="${date}"`;
+  const cO=(S.data.compagnie||[]).map(c=>`<option value="${c.id}"${v1.comp===c.id?' selected':''}>${esc(c.codice)}</option>`).join('');
+  const cO2=(S.data.compagnie||[]).map(c=>`<option value="${c.id}"${v2.comp===c.id?' selected':''}>${esc(c.codice)}</option>`).join('');
+  const kO=CNT_TYPES.map(t=>`<option${v1.container===t?' selected':''}>${t}</option>`).join('');
+  const kO2=CNT_TYPES.map(t=>`<option${v2.container===t?' selected':''}>${t}</option>`).join('');
+  const pO=PK.map(p=>`<option value="${p}"${(v1.porto||a.porto)===p?' selected':''}>${p}</option>`).join('');
+  const pO2='<option value=""></option>'+PK.map(p=>`<option value="${p}"${v2.porto===p?' selected':''}>${p}</option>`).join('');
+  const pAO=PK.map(p=>`<option value="${p}"${a.porto===p?' selected':''}>${p}</option>`).join('');
+  const riut=r.riut||'';
+  const nwd=nextWorkingDay(date);
+  const nextAss=isAss(a.id,nwd,S.data.assenze||[]);
+  const v1bg=v1.lv?'background:#fefce8;':'';
+  const v2bg=v2.lv?'background:#fefce8;':'';
+  // V2 section
+  let v2Html='';
+  if(riut==='GD'){
+    v2Html=`<td class="c-sep v2c" style="${v2bg}"></td>
+    <td colspan="8" class="riut-gd v2c" style="padding:3px 10px;vertical-align:middle;${v2bg}">
+      <div style="display:flex;align-items:center;gap:6px;color:#9a3412;font-size:11.5px;white-space:nowrap">
+        <span style="font-size:15px;font-weight:700">⟶</span>
+        <span>Ricarica domani a:</span>
+        ${isAdmin?`<input class="ci" value="${esc(r.riut_dest||'')}" data-fld="riut_dest" ${d} placeholder="località" style="max-width:130px;font-weight:700;color:#9a3412">`:`<strong>${esc(r.riut_dest||'—')}</strong>`}
+      </div>
+    </td>`;
+  }else{
+    v2Html=`<td class="c-sep"></td>
+    <td class="c-po v2c" style="${v2bg}">${isAdmin?`<select class="cs" data-fld="v2.porto" ${d}>${pO2}</select>`:`<span>${v2.porto||''}</span>`}</td>
+    <td class="c-ore v2c" style="${v2bg}">${isAdmin?`<input class="ci" type="time" value="${esc(v2.ora||'')}" data-fld="v2.ora" ${d}>`:`<span>${v2.ora||''}</span>`}</td>
+    <td class="c-ie v2c" style="${v2bg}">${isAdmin?`<select class="cs" data-fld="v2.ie" ${d}><option value=""></option><option value="I"${v2.ie==='I'?' selected':''}>I</option><option value="E"${v2.ie==='E'?' selected':''}>E</option></select>`:`<span class="${v2.ie?'ie-'+v2.ie:''}">${v2.ie||''}</span>`}</td>
+    <td class="c-cnt v2c" style="${v2bg}">${isAdmin?`<select class="cs" data-fld="v2.container" ${d}><option value=""></option>${kO2}</select>`:`<span>${esc(v2.container||'')}</span>`}</td>
+    <td class="c-vg v2c" style="${v2bg}">${isAdmin?`<div><div style="display:flex;gap:2px;align-items:center"><input class="ci" value="${esc(v2.dest||'')}" data-fld="v2.dest" ${d} placeholder="destinazione"><button class="ritira-btn${v2.ritira?' on':''}" onclick="showRitiraPopup(event,'${date}','${a.id}','v2')" title="${esc(v2.ritira||'Chi ritira?')}">👤</button></div>${v2.ritira?`<div class="ritira-txt">${esc(v2.ritira)}</div>`:''}</div>`:`<div><span>${esc(v2.dest||'')}</span>${v2.ritira?`<div class="ritira-txt">${esc(v2.ritira)}</div>`:''}</div>`}</td>
+    <td class="c-nt v2c" style="${v2bg}">${isAdmin?`<input class="ci" value="${esc(v2.note||'')}" data-fld="v2.note" ${d} placeholder="note">`:`<span style="font-size:11px;color:#64748b">${esc(v2.note||'')}</span>`}</td>
+    <td class="c-cp v2c" style="${v2bg}">${isAdmin?`<select class="cs" data-fld="v2.comp" ${d}><option value=""></option>${cO2}</select>`:`<span style="font-size:11px;font-weight:600">${esc(getCC(v2.comp))}</span>`}</td>
+    <td class="c-fl v2c" style="text-align:center;${v2bg}"><input type="checkbox" class="ck" ${v2.lv?'checked':''} data-fld="v2.lv" ${d} ${isAdmin?'':'disabled'}></td>`;
+  }
+  return `<tr class="g-row${v1.lv?' v1lv':''}${v2.lv?' v2lv':''}" data-aid="${a.id}">
+    ${isAdmin?`<td class="c-ord v1c" style="${v1bg}"><div class="ord-bs">
+      <button class="matt-btn${r.mattino?' on':''}" data-act="mattino" ${d} title="Ritiro mattina stessa">＋</button>
+      ${idx>0?`<button class="ord-b" data-act="up" ${d}>▲</button>`:''}
+      ${idx<total-1?`<button class="ord-b" data-act="dn" ${d}>▼</button>`:''}
+    </div></td>`:''}
+    <td class="c-num v1c" style="text-align:center;${v1bg}">${r.mattino?`<span class="matt-lbl">＋</span>`:''}${idx+1}</td>
+    <td class="c-aut v1c" style="padding:2px 4px;${v1bg}">
+      <div class="a-nome">${esc(a.cognome)} ${esc(a.nome)}</div>
+      ${isAdmin?`<select class="cs" data-fld="porto_override" ${d} onchange="updateGiornCell('${date}','${a.id}','porto_override',this.value)" style="font-size:10px;color:#94a3b8;margin-top:1px">${pAO}</select>`:`<div class="a-sub">${a.porto}</div>`}
+      ${nextAss?`<div style="color:#dc2626;font-size:10px;font-weight:700;margin-top:2px">🔴 assente domani</div>`:''}
+    </td>
+    <td class="c-tg v1c" style="${v1bg}">${isAdmin?`<input class="ci" value="${esc(r.motrice||'')}" data-fld="motrice" ${d} placeholder="targa" style="font-family:monospace;font-weight:700;background:#fef9c3;color:#713f12;text-transform:uppercase">`:`<span class="tg-m">${esc(r.motrice||'—')}</span>`}</td>
+    <td class="c-tg v1c" style="${v1bg}">${isAdmin?`<input class="ci" value="${esc(r.rimorchio||'')}" data-fld="rimorchio" ${d} placeholder="targa" style="font-family:monospace;font-weight:700;background:#fce7f3;color:#831843;text-transform:uppercase">`:`<span class="tg-r">${esc(r.rimorchio||'—')}</span>`}</td>
+    <td class="c-po v1c" style="${v1bg}">${isAdmin?`<select class="cs" data-fld="v1.porto" ${d}>${pO}</select>`:`<span>${v1.porto||''}</span>`}</td>
+    <td class="c-ore v1c" style="${v1bg}">${isAdmin?`<input class="ci" type="time" value="${esc(v1.ora||'')}" data-fld="v1.ora" ${d}>`:`<span>${v1.ora||'—'}</span>`}</td>
+    <td class="c-ie v1c" style="${v1bg}">${isAdmin?`<select class="cs" data-fld="v1.ie" ${d}><option value=""></option><option value="I"${v1.ie==='I'?' selected':''}>I</option><option value="E"${v1.ie==='E'?' selected':''}>E</option></select>`:`<span class="${v1.ie?'ie-'+v1.ie:''}">${v1.ie||''}</span>`}</td>
+    <td class="c-cnt v1c" style="${v1bg}">${isAdmin?`<select class="cs" data-fld="v1.container" ${d}><option value=""></option>${kO}</select>`:`<span>${esc(v1.container||'')}</span>`}</td>
+    <td class="c-vg v1c" style="${v1bg}">${isAdmin?`<div><div style="display:flex;gap:2px;align-items:center"><input class="ci" value="${esc(v1.dest||'')}" data-fld="v1.dest" ${d} placeholder="destinazione"><button class="ritira-btn${v1.ritira?' on':''}" onclick="showRitiraPopup(event,'${date}','${a.id}','v1')" title="${esc(v1.ritira||'Chi ritira?')}">👤</button></div>${v1.ritira?`<div class="ritira-txt">${esc(v1.ritira)}</div>`:''}</div>`:`<div><span>${esc(v1.dest||'—')}</span>${v1.ritira?`<div class="ritira-txt">${esc(v1.ritira)}</div>`:''}</div>`}</td>
+    <td class="c-nt v1c" style="${v1bg}">${isAdmin?`<input class="ci" value="${esc(v1.note||'')}" data-fld="v1.note" ${d} placeholder="note">`:`<span style="font-size:11px;color:#64748b">${esc(v1.note||'')}</span>`}</td>
+    <td class="c-cp v1c" style="${v1bg}">${isAdmin?`<select class="cs" data-fld="v1.comp" ${d}><option value=""></option>${cO}</select>`:`<span style="font-size:11px;font-weight:600">${esc(getCC(v1.comp))}</span>`}</td>
+    <td class="c-fl v1c" style="text-align:center;${v1bg}"><input type="checkbox" class="ck" ${v1.lv?'checked':''} data-fld="v1.lv" ${d} ${isAdmin?'':'disabled'}></td>
+    <td class="c-riut v1c" style="${v1bg}">${isAdmin?`<select class="cs" data-fld="riut" ${d} style="font-size:10.5px" title="Riutilizzo container"><option value=""></option><option value="SD"${riut==='SD'?' selected':''}>Stesso gg</option><option value="GD"${riut==='GD'?' selected':''}>Giorno dopo</option></select>`:`<span style="font-size:10px;font-weight:700;color:${riut==='GD'?'#9a3412':riut==='SD'?'#166534':'#94a3b8'}">${riut}</span>`}</td>
+    ${v2Html}
+  </tr>`;
+}
+
+function updateGiornCell(date,aid,fld,val){
+  const data=S.data;
+  if(!data.giornaliero)data.giornaliero={};
+  if(!data.giornaliero[date])data.giornaliero[date]={rows:{},porto_overrides:{},order:[]};
+  const dd=data.giornaliero[date];
+  const autista=(data.autisti||[]).find(a=>a.id===aid);
+  if(!autista)return;
+  if(!dd.rows[aid]){
+    const prevDate=offDate(date,-1);
+    const prevDD=data.giornaliero[prevDate]||{rows:{}};
+    const prevRow=prevDD.rows[aid];
+    const gdPrefill=prevRow&&prevRow.riut==='GD';
+    const isMonday=new Date(date).getDay()===1;
+    const prevPorto=!isMonday&&(data.giornaliero[prevDate]||{porto_overrides:{}}).porto_overrides&&(data.giornaliero[prevDate]||{porto_overrides:{}}).porto_overrides[aid];
+    dd.rows[aid]={
+      motrice:autista.last_motrice||getMTarga(autista),
+      rimorchio:autista.last_rimorchio||getRTarga(autista),
+      riut:'',riut_dest:'',mattino:false,
+      v1:{porto:prevPorto||autista.porto||'LI',ora:'',
+        ie:gdPrefill?'E':'',
+        container:gdPrefill&&prevRow.v1?prevRow.v1.container:'',
+        dest:gdPrefill?prevRow.riut_dest||'':'',
+        note:'',comp:gdPrefill&&prevRow.v1?prevRow.v1.comp:'',
+        lv:false,ritira:''},
+      v2:{porto:'',ora:'',ie:'',container:'',dest:'',note:'',comp:'',lv:false,ritira:''}
+    };
+  }
+  const row=dd.rows[aid];
+  if(fld==='porto_override'){
+    dd.porto_overrides[aid]=val;
+    S.data=data;
+    const m=document.querySelector('.main');if(m)m.innerHTML=renderGiorn();
+    scheduleSave(data);return;
+  }
+  if(fld==='riut'){
+    row.riut=val;
+    if(val==='SD'){
+      row.v2.ie='E';row.v2.container=row.v1.container||'';
+      row.v2.comp=row.v1.comp||'';row.v2.porto=row.v1.porto||autista.porto||'LI';
+      row.v1.lv=true;
+    }
+    S.data=data;
+    const m=document.querySelector('.main');if(m)m.innerHTML=renderGiorn();
+    scheduleSave(data);return;
+  }
+  if(fld==='riut_dest'){row.riut_dest=val;}
+  else if(fld==='mattino'){
+    row.mattino=val;
+    S.data=data;
+    const m=document.querySelector('.main');if(m)m.innerHTML=renderGiorn();
+    scheduleSave(data);return;
+  }
+  else if(fld==='motrice'){
+    row.motrice=val.toUpperCase();
+    // Propagate to autista archive for future days
+    const aut=data.autisti.find(x=>x.id===aid);
+    if(aut)aut.last_motrice=val.toUpperCase();
+  }
+  else if(fld==='rimorchio'){
+    row.rimorchio=val.toUpperCase();
+    const aut=data.autisti.find(x=>x.id===aid);
+    if(aut)aut.last_rimorchio=val.toUpperCase();
+  }
+  else if(fld.startsWith('v1.')){
+    const k=fld.slice(3);
+    if(k==='lv'){
+      row.v1.lv=val;
+      // Update row class directly
+      const tr=document.querySelector(`tr[data-aid="${aid}"]`);
+      if(tr)tr.classList.toggle('v1lv',val);
+    }else{
+      row.v1[k]=val;
+      if(row.riut==='SD'){
+        if(k==='container'){row.v2.container=val;}
+        if(k==='comp'){row.v2.comp=val;}
+        if(k==='porto'){row.v2.porto=val;}
+      }
+    }
+  }
+  else if(fld.startsWith('v2.')){
+    const k=fld.slice(3);
+    if(k==='lv'){
+      row.v2.lv=val;
+      const tr=document.querySelector(`tr[data-aid="${aid}"]`);
+      if(tr)tr.classList.toggle('v2lv',val);
+    }else row.v2[k]=val;
+  }
+  S.data=data;scheduleSave(data);
+}
+
+function moveAutista(date,aid,dir){
+  const data=S.data;
+  if(!data.giornaliero)data.giornaliero={};
+  if(!data.giornaliero[date])data.giornaliero[date]={rows:{},porto_overrides:{},order:[]};
+  const dd=data.giornaliero[date];
+  const autisti=(data.autisti||[]).filter(a=>a.attivo!==false);
+  const savedOrder=dd.order||[];
+  const enriched=autisti.map(a=>({...a,ass:isAss(a.id,date,data.assenze||[]),porto:dd.porto_overrides[a.id]||a.porto||'LI'})).filter(a=>!a.ass);
+  enriched.sort((a,b)=>{const ia=savedOrder.indexOf(a.id),ib=savedOrder.indexOf(b.id);if(ia>=0&&ib>=0)return ia-ib;if(ia>=0)return -1;if(ib>=0)return 1;return(a.cognome+a.nome).localeCompare(b.cognome+b.nome);});
+  const autista=enriched.find(a=>a.id===aid);if(!autista)return;
+  const grp=enriched.filter(a=>a.porto===autista.porto);
+  const pos=grp.findIndex(a=>a.id===aid);
+  if(dir===-1&&pos===0)return;if(dir===1&&pos===grp.length-1)return;
+  const swapId=grp[pos+dir].id;
+  const newOrder=enriched.map(a=>a.id);
+  const pA=newOrder.indexOf(aid),pB=newOrder.indexOf(swapId);
+  [newOrder[pA],newOrder[pB]]=[newOrder[pB],newOrder[pA]];
+  dd.order=newOrder;S.data=data;
+  const m=document.querySelector('.main');if(m)m.innerHTML=renderGiorn();
+  scheduleSave(data);
+}
+
+function showRitiraPopup(e,date,aid,v){
+  e.stopPropagation();
+  const existing=document.getElementById('ritira-pop');
+  if(existing){existing.remove();return;}
+  const dd=(S.data.giornaliero[date]||{rows:{}}).rows[aid]||{};
+  const currentVal=(dd[v]&&dd[v].ritira)||'';
+  const pop=document.createElement('div');
+  pop.id='ritira-pop';
+  const rect=e.target.getBoundingClientRect();
+  pop.style.top=(rect.bottom+5)+'px';
+  pop.style.left=Math.max(8,Math.min(rect.left,window.innerWidth-240))+'px';
+  pop.innerHTML=`<div style="font-size:11px;font-weight:700;color:#475569;margin-bottom:7px">👤 Chi ritira? (${v==='v1'?'1° viaggio':'2° viaggio'})</div>
+    <input id="ritira-inp" value="${currentVal.replace(/"/g,'&quot;')}" placeholder="es. ritira Pino, GW000DA" style="width:100%;font-size:12.5px;padding:5px 7px;border:1px solid #e2e8f0;border-radius:5px;outline:none;margin-bottom:8px">
+    <div style="display:flex;justify-content:flex-end;gap:6px">
+      <button onclick="document.getElementById('ritira-pop').remove()" style="padding:4px 10px;border:1px solid #e2e8f0;border-radius:4px;cursor:pointer;background:#fff;font-size:12px">✕</button>
+      <button onclick="saveRitira('${date}','${aid}','${v}')" style="padding:4px 10px;background:#f59e0b;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px">✓ OK</button>
+    </div>`;
+  document.body.appendChild(pop);
+  const inp=document.getElementById('ritira-inp');
+  inp.focus();inp.select();
+  inp.onkeydown=ev=>{if(ev.key==='Enter')saveRitira(date,aid,v);if(ev.key==='Escape')pop.remove();};
+  setTimeout(()=>document.addEventListener('click',function cp(ev){if(!pop.contains(ev.target)){pop.remove();document.removeEventListener('click',cp);}},),100);
+}
+function saveRitira(date,aid,v){
+  const val=(document.getElementById('ritira-inp')||{}).value||'';
+  updateGiornCell(date,aid,v+'.ritira',val);
+  const pop=document.getElementById('ritira-pop');if(pop)pop.remove();
+  const m=document.querySelector('.main');if(m)m.innerHTML=renderGiorn();
+}
+
+// ══════════ AUTISTI TAB ══════════
+function renderAutisti(){
+  const list=(S.data.autisti||[]);
+  const q=(S.search.autisti||'').toLowerCase();
+  const filtered=list.filter(a=>`${a.nome} ${a.cognome} ${a.porto||''} ${a.patente_num||''}`.toLowerCase().includes(q));
+  return `<div class="ph">
+    <span class="pt">👤 Autisti</span>
+    <div style="display:flex;gap:7px;align-items:center">
+      <input placeholder="Cerca..." value="${esc(S.search.autisti||'')}" oninput="setSearch('autisti',this.value)" style="width:180px;padding:5px 8px;font-size:12px">
+      ${canEdit('autisti')?`<button class="btn ba" data-act="newAutista">+ Nuovo autista</button>`:''}
+    </div>
+  </div>
+  <div class="card"><table class="std">
+    <thead><tr><th>Autista</th><th>Porto</th><th>Motrice default</th><th>Patente scad.</th><th>Visita scad.</th><th>ADR</th><th>Stato</th><th></th></tr></thead>
+    <tbody>${filtered.length===0?`<tr><td colspan="8" class="empty">Nessun autista</td></tr>`:
+      filtered.map(a=>{
+        const dp=eb(dTo(a.patente_scad)),dv=eb(dTo(a.visita_scad));
+        const m=(S.data.motrici||[]).find(x=>x.id===a.motrice_id);
+        return`<tr>
+          <td><div style="font-weight:700">${esc(a.cognome)} ${esc(a.nome)}</div><div style="font-size:11px;color:#94a3b8">${esc(a.telefono||'')}</div></td>
+          <td><span class="bdg" style="background:${a.porto==='LI'?'#eff6ff':a.porto==='SP'?'#f0fdf4':'#fff7ed'};color:${a.porto==='LI'?'#1e40af':a.porto==='SP'?'#166534':'#9a3412'}">${a.porto||'—'}</span></td>
+          <td><span class="tg-m">${m?m.targa:'—'}</span></td>
+          <td><span class="bdg" style="background:${dp.bg};color:${dp.c}">${dp.t}</span><div style="font-size:10.5px;color:#94a3b8">${fd(a.patente_scad)}</div></td>
+
+          <td><span class="bdg" style="background:${dv.bg};color:${dv.c}">${dv.t}</span><div style="font-size:10.5px;color:#94a3b8">${fd(a.visita_scad)}</div></td>
+          <td>${a.adr?'<span class="bdg" style="background:#fef3c7;color:#92400e">ADR ✓</span>':'<span style="color:#d1d5db;font-size:11px">—</span>'}</td>
+          <td><span class="bdg" style="background:${a.attivo!==false?'#f0fdf4':'#f1f5f9'};color:${a.attivo!==false?'#16a34a':'#94a3b8'}">${a.attivo!==false?'Attivo':'Inattivo'}</span></td>
+          <td><div style="display:flex;gap:5px">
+            ${canEdit('autisti')?`<button class="btn bg bxs" data-act="editAutista" data-id="${a.id}">✏️</button>`:''}
+            ${a.email?`<a href="mailto:${esc(a.email)}" class="btn bg bxs" title="Invia email">✉️</a>`:''}
+            ${S.user.role==='admin'?`<button class="btn bd bxs" data-act="delAutista" data-id="${a.id}">🗑</button>`:''}
+          </div></td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+// ══════════ ASSENZE TAB ══════════
+function renderAssenze(){
+  const list=(S.data.assenze||[]).slice().sort((a,b)=>b.data_inizio.localeCompare(a.data_inizio));
+  const q=(S.search.assenze||'').toLowerCase();
+  const today2=td();
+  const filtered=list.filter(a=>{
+    const autista=(S.data.autisti||[]).find(x=>x.id===a.autista_id);
+    return`${autista?autista.cognome+' '+autista.nome:''} ${a.tipo}`.toLowerCase().includes(q);
+  });
+  return `<div class="ph">
+    <span class="pt">📅 Assenze</span>
+    <div style="display:flex;gap:7px;align-items:center">
+      <input placeholder="Cerca..." value="${esc(S.search.assenze||'')}" oninput="setSearch('assenze',this.value)" style="width:180px;padding:5px 8px;font-size:12px">
+      ${canEdit('assenze')?`<button class="btn ba" data-act="newAssenza">+ Nuova assenza</button>`:''}
+    </div>
+  </div>
+  <div class="card"><table class="std">
+    <thead><tr><th>Autista</th><th>Tipo</th><th>Dal</th><th>Al</th><th>Note</th><th>Stato</th><th></th></tr></thead>
+    <tbody>${filtered.length===0?`<tr><td colspan="7" class="empty">Nessuna assenza</td></tr>`:
+      filtered.map(a=>{
+        const aut=(S.data.autisti||[]).find(x=>x.id===a.autista_id);
+        const attiva=a.data_inizio<=today2&&a.data_fine>=today2;
+        return`<tr>
+          <td style="font-weight:600">${aut?esc(aut.cognome)+' '+esc(aut.nome):'?'}</td>
+          <td><span class="bdg" style="background:#fef2f2;color:#dc2626">${esc(a.tipo)}</span></td>
+          <td>${fd(a.data_inizio)}</td><td>${fd(a.data_fine)}</td>
+          <td style="font-size:11.5px;color:#64748b">${esc(a.note||'—')}</td>
+          <td><span class="bdg" style="background:${attiva?'#fef2f2':'#f1f5f9'};color:${attiva?'#dc2626':'#94a3b8'}">${attiva?'In corso':'Passata/Futura'}</span></td>
+          <td><div style="display:flex;gap:5px">
+            ${canEdit('assenze')?`<button class="btn bg bxs" data-act="editAssenza" data-id="${a.id}">✏️</button>`:''}
+            ${S.user.role==='admin'?`<button class="btn bd bxs" data-act="delAssenza" data-id="${a.id}">🗑</button>`:''}
+          </div></td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+// ══════════ MOTRICI TAB ══════════
+function renderMotrici(){
+  const list=(S.data.motrici||[]);
+  const q=(S.search.motrici||'').toLowerCase();
+  const filtered=list.filter(m=>`${m.targa} ${m.marca||''} ${m.modello||''}`.toLowerCase().includes(q));
+  return `<div class="ph"><span class="pt">🚛 Motrici</span>
+    <div style="display:flex;gap:7px;align-items:center">
+      <input placeholder="Cerca..." value="${esc(S.search.motrici||'')}" oninput="setSearch('motrici',this.value)" style="width:180px;padding:5px 8px;font-size:12px">
+      ${canEdit('motrici')?`<button class="btn ba" data-act="newMotrice">+ Nuova motrice</button>`:''}
+    </div>
+  </div>
+  <div class="card"><table class="std">
+    <thead><tr><th>Targa</th><th>Marca / Modello</th><th>Revisione</th><th>Assicurazione</th><th>Tachigrafo</th><th>Stato</th><th></th></tr></thead>
+    <tbody>${filtered.length===0?`<tr><td colspan="7" class="empty">Nessuna motrice</td></tr>`:
+      filtered.map(m=>{
+        const dr=eb(dTo(m.rev_scad)),da=eb(dTo(m.ass_scad)),dt=eb(dTo(m.tach_scad));
+        return`<tr>
+          <td><span class="tg-m" style="font-size:12.5px">${esc(m.targa)}</span></td>
+          <td><div style="font-weight:600">${esc(m.marca||'')} ${esc(m.modello||'')}</div><div style="font-size:11px;color:#94a3b8">${m.anno||''}</div></td>
+          <td><span class="bdg" style="background:${dr.bg};color:${dr.c}">${dr.t}</span><div style="font-size:10.5px;color:#94a3b8">${fd(m.rev_scad)}</div></td>
+          <td><span class="bdg" style="background:${da.bg};color:${da.c}">${da.t}</span><div style="font-size:10.5px;color:#94a3b8">${fd(m.ass_scad)}</div></td>
+          <td><span class="bdg" style="background:${dt.bg};color:${dt.c}">${dt.t}</span><div style="font-size:10.5px;color:#94a3b8">${fd(m.tach_scad)}</div></td>
+          <td><span class="bdg" style="background:${m.attivo!==false?'#f0fdf4':'#f1f5f9'};color:${m.attivo!==false?'#16a34a':'#94a3b8'}">${m.attivo!==false?'Attiva':'Ferma'}</span></td>
+          <td><div style="display:flex;gap:5px">
+            ${canEdit('motrici')?`<button class="btn bg bxs" data-act="editMotrice" data-id="${m.id}">✏️</button>`:''}
+            ${S.user.role==='admin'?`<button class="btn bd bxs" data-act="delMotrice" data-id="${m.id}">🗑</button>`:''}
+          </div></td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+// ══════════ RIMORCHI TAB ══════════
+function renderRimorchi(){
+  const list=(S.data.rimorchi||[]);
+  const q=(S.search.rimorchi||'').toLowerCase();
+  const filtered=list.filter(r=>`${r.targa} ${r.tipo||''}`.toLowerCase().includes(q));
+  return `<div class="ph"><span class="pt">🚌 Rimorchi</span>
+    <div style="display:flex;gap:7px;align-items:center">
+      <input placeholder="Cerca..." value="${esc(S.search.rimorchi||'')}" oninput="setSearch('rimorchi',this.value)" style="width:180px;padding:5px 8px;font-size:12px">
+      ${canEdit('rimorchi')?`<button class="btn ba" data-act="newRimorchio">+ Nuovo rimorchio</button>`:''}
+    </div>
+  </div>
+  <div class="card"><table class="std">
+    <thead><tr><th>Targa</th><th>Tipo</th><th>Anno</th><th>Revisione</th><th>Assicurazione</th><th>ADR</th><th>Stato</th><th></th></tr></thead>
+    <tbody>${filtered.length===0?`<tr><td colspan="7" class="empty">Nessun rimorchio</td></tr>`:
+      filtered.map(r=>{
+        const dr=eb(dTo(r.rev_scad)),da=eb(dTo(r.ass_scad));
+        return`<tr>
+          <td><span class="tg-r" style="font-size:12.5px">${esc(r.targa)}</span></td>
+          <td>${esc(r.tipo||'—')}</td><td>${r.anno||'—'}</td>
+          <td><span class="bdg" style="background:${dr.bg};color:${dr.c}">${dr.t}</span><div style="font-size:10.5px;color:#94a3b8">${fd(r.rev_scad)}</div></td>
+          <td><span class="bdg" style="background:${da.bg};color:${da.c}">${da.t}</span><div style="font-size:10.5px;color:#94a3b8">${fd(r.ass_scad)}</div></td>
+          <td>${r.adr?'<span class="bdg" style="background:#fef3c7;color:#92400e">ADR ✓</span>':'<span style="color:#d1d5db;font-size:11px">—</span>'}</td>
+          <td><span class="bdg" style="background:${r.attivo!==false?'#f0fdf4':'#f1f5f9'};color:${r.attivo!==false?'#16a34a':'#94a3b8'}">${r.attivo!==false?'Attivo':'Fermo'}</span></td>
+          <td><div style="display:flex;gap:5px">
+            ${canEdit('rimorchi')?`<button class="btn bg bxs" data-act="editRimorchio" data-id="${r.id}">✏️</button>`:''}
+            ${S.user.role==='admin'?`<button class="btn bd bxs" data-act="delRimorchio" data-id="${r.id}">🗑</button>`:''}
+          </div></td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+// ══════════ COMPAGNIE TAB ══════════
+function renderCompagnie(){
+  const list=(S.data.compagnie||[]);
+  return `<div class="ph"><span class="pt">🚢 Compagnie Marittime</span>
+    ${canEdit('compagnie')?`<button class="btn ba" data-act="newCompagnia">+ Nuova compagnia</button>`:''}
+  </div>
+  <div class="card"><table class="std">
+    <thead><tr><th>Codice</th><th>Nome</th><th></th></tr></thead>
+    <tbody>${list.map(c=>`<tr>
+      <td><span class="bdg" style="background:#f0f4f8;color:#1e293b;font-family:monospace;font-weight:700">${esc(c.codice)}</span></td>
+      <td>${esc(c.nome)}</td>
+      <td><div style="display:flex;gap:5px">
+        ${canEdit('compagnie')?`<button class="btn bg bxs" data-act="editCompagnia" data-id="${c.id}">✏️</button>`:''}
+        ${S.user.role==='admin'?`<button class="btn bd bxs" data-act="delCompagnia" data-id="${c.id}">🗑</button>`:''}
+      </div></td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+// ══════════ SCADENZE TAB ══════════
+function renderScadenze(){
+  const prefs=getScadPrefs();
+  const cats=prefs.categorie;
+  const s=prefs.soglie;
+  const items=buildScadItems(prefs);
+  const scad=items.filter(x=>x.days<0).length;
+  const crit=items.filter(x=>x.days>=0&&x.days<=s.critico).length;
+  const att=items.filter(x=>x.days>s.critico&&x.days<=s.attenzione).length;
+  const avv=items.filter(x=>x.days>s.attenzione&&x.days<=s.avviso).length;
+  const ck=(id,val)=>`<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12.5px;white-space:nowrap">
+    <input id="sp-${id}" type="checkbox" ${val?'checked':''} style="width:14px;height:14px;accent-color:#f59e0b"> ${SCAD_CATS.find(x=>x.id===id).label}
+  </label>`;
+  return `<div class="ph">
+    <span class="pt">⚠️ Scadenze</span>
+    <div style="display:flex;gap:7px">
+      <button class="btn ba" onclick="applyScadPrefs()">✓ Applica filtri</button>
+      <button class="btn bg" onclick="sendScadEmail()">📧 Invia riepilogo email</button>
+    </div>
+  </div>
+
+  <!-- Filtri e soglie -->
+  <div class="card" style="padding:14px 16px;margin-bottom:12px">
+    <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">⚙️ Preferenze personali (salvate per il tuo utente)</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+      ${SCAD_CATS.map(cat=>`<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:5px;padding:6px 10px">${ck(cat.id,cats[cat.id])}</div>`).join('')}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;align-items:end">
+      <div><label class="fl">🔴 Critico (gg)</label><input id="sp-critico" type="number" value="${s.critico}" min="1" max="365" style="padding:5px 8px;font-size:12.5px"></div>
+      <div><label class="fl">🟡 Attenzione (gg)</label><input id="sp-attenzione" type="number" value="${s.attenzione}" min="1" max="365" style="padding:5px 8px;font-size:12.5px"></div>
+      <div><label class="fl">🔵 Avviso (gg)</label><input id="sp-avviso" type="number" value="${s.avviso}" min="1" max="365" style="padding:5px 8px;font-size:12.5px"></div>
+      <div><label class="fl">📧 Destinatario email</label><input id="sp-email" type="email" value="${esc(prefs.email_dest||'')}" placeholder="nome@esempio.it" style="padding:5px 8px;font-size:12.5px"></div>
+    </div>
+  </div>
+
+  <!-- Contatori -->
+  <div class="stat-grid" style="margin-bottom:12px">
+    <div class="sc" style="border-left:3px solid #dc2626"><div class="sc-l">Scaduti</div><div class="sc-v" style="color:${scad>0?'#dc2626':'#0c1c2e'}">${scad}</div></div>
+    <div class="sc" style="border-left:3px solid #ef4444"><div class="sc-l">Critici (≤${s.critico}gg)</div><div class="sc-v" style="color:${crit>0?'#dc2626':'#0c1c2e'}">${crit}</div></div>
+    <div class="sc" style="border-left:3px solid #f59e0b"><div class="sc-l">Attenzione (≤${s.attenzione}gg)</div><div class="sc-v" style="color:${att>0?'#d97706':'#0c1c2e'}">${att}</div></div>
+    <div class="sc" style="border-left:3px solid #3b82f6"><div class="sc-l">Avviso (≤${s.avviso}gg)</div><div class="sc-v" style="color:${avv>0?'#1d4ed8':'#0c1c2e'}">${avv}</div></div>
+  </div>
+
+  ${items.length===0
+    ?`<div class="card" style="padding:40px;text-align:center;color:#16a34a;font-weight:600">✅ Nessuna scadenza da segnalare con i filtri impostati!</div>`
+    :items.map(it=>{
+      const col=it.days<0?'#dc2626':it.days<=s.critico?'#dc2626':it.days<=s.attenzione?'#d97706':'#1d4ed8';
+      const bg=it.days<0?'#fef2f2':it.days<=s.critico?'#fef2f2':it.days<=s.attenzione?'#fffbeb':'#eff6ff';
+      const bdr=it.days<0?'#dc2626':it.days<=s.critico?'#ef4444':it.days<=s.attenzione?'#f59e0b':'#3b82f6';
+      const t=it.days<0?`Scaduta ${Math.abs(it.days)}gg fa`:it.days===0?'Scade oggi':`${it.days}gg`;
+      return`<div class="al" style="border-color:${bdr};background:${bg}">
+        <span style="font-size:16px">${it.cat==='autista'?'👤':it.cat==='motrice'?'🚛':'🚌'}</span>
+        <div style="flex:1">
+          <span style="font-weight:700;color:${col}">${esc(it.tipo)}</span>
+          <span style="color:#334155;margin-left:6px">${esc(it.nome)}</span>
+          <span style="color:#94a3b8;font-size:11px;margin-left:8px">Scade: ${fd(it.scad)}</span>
+        </div>
+        <span class="bdg" style="background:${bg};color:${col};border:1px solid ${bdr}">${t}</span>
+      </div>`;
+    }).join('')}`;
+}
+
+// ══════════ IMPOSTAZIONI TAB ══════════
+function renderImpost(){
+  const isAdmin=S.user.role==='admin';
+  return `<div class="ph"><span class="pt">⚙️ Impostazioni</span></div>
+  ${isAdmin?`<div class="ph" style="margin-bottom:8px"><span style="font-size:13px;font-weight:700;color:#0c1c2e">👥 Utenti</span><button class="btn ba bs" data-act="newUser">+ Nuovo utente</button></div>
+  <div class="card" style="margin-bottom:16px"><table class="std">
+    <thead><tr><th>Nome</th><th>Username</th><th>Ruolo</th><th></th></tr></thead>
+    <tbody>${(S.data.users||[]).map(u=>`<tr>
+      <td style="font-weight:600">${esc(u.nome)}</td>
+      <td style="font-family:monospace">${esc(u.username)}</td>
+      <td><span class="bdg" style="background:${u.role==='admin'?'#eff6ff':u.role==='utente'?'#fff7ed':'#f1f5f9'};color:${u.role==='admin'?'#1d4ed8':u.role==='utente'?'#9a3412':'#64748b'}">${u.role}</span>${u.role==='utente'&&u.permissions?`<div style="font-size:10px;color:#94a3b8;margin-top:2px">${Object.entries(u.permissions||{}).filter(([k,v])=>v).map(([k])=>k).join(', ')||'nessuno'}</div>`:''}</td>
+      <td><div style="display:flex;gap:5px">
+        <button class="btn bg bxs" data-act="editUser" data-id="${u.id}">✏️</button>
+        ${u.id!==S.user.id?`<button class="btn bd bxs" data-act="delUser" data-id="${u.id}">🗑</button>`:''}
+      </div></td>
+    </tr>`).join('')}</tbody>
+  </table></div>`:''}
+  <div style="font-size:13px;font-weight:700;color:#0c1c2e;margin-bottom:8px">💾 Backup dati</div>
+  <div class="card" style="padding:14px 16px;margin-bottom:14px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <button class="btn bp" data-act="exportJSON">⬇ Esporta backup JSON</button>
+      <button class="btn ba" data-act="exportExcel">📊 Esporta Giornaliero Excel</button>
+      ${isAdmin?`<button class="btn bg" onclick="document.getElementById('imp-file').click()">⬆ Importa JSON</button><input id="imp-file" type="file" accept=".json" style="display:none" onchange="importJSON(this)">`:''}
+      ${S.cfg&&S.cfg.mode==='gist'?`<button class="btn bg" data-act="reloadGist">↻ Ricarica da Gist</button>`:''}
+    </div>
+    <p style="font-size:11.5px;color:#94a3b8">${S.cfg&&S.cfg.mode==='gist'?`Gist ID: <code style="font-family:monospace;background:#f1f5f9;padding:1px 4px;border-radius:3px">${esc(S.cfg.gistId)}</code>`:'Modalità locale — dati salvati nel browser'}</p>
+  </div>
+  <div style="font-size:13px;font-weight:700;color:#0c1c2e;margin-bottom:8px">👤 Account</div>
+  <div class="card" style="padding:14px 16px">
+    <p style="margin-bottom:10px;font-size:13px">Connesso come <strong>${esc(S.user.nome)}</strong> (${S.user.role})</p>
+    <button class="btn bd bs" data-act="logout">🚪 Disconnetti</button>
+    <button class="btn bg bs" data-act="changePwd" style="margin-left:7px">🔑 Cambia password</button>
+    ${isAdmin?`<button class="btn bg bs" data-act="resetCfg" style="margin-left:12px">⚠️ Reimposta configurazione</button>`:''}
+  </div>`;
+}
+
+// ══════════ SETUP SCREEN ══════════
+function renderSetup(){
+  const mode=S._setupMode||'gist';
+  return `<div class="full"><div class="setup-c">
+    <div class="screen-logo">🚛 TrasportiApp</div>
+    <div class="screen-title">Prima configurazione</div>
+    <div class="screen-sub">Scegli come condividere i dati tra i colleghi.</div>
+    <div class="mode-grid">
+      <div class="mode-btn${mode==='gist'?' sel':''}" onclick="setupMode('gist')">
+        <div style="font-size:22px">☁️</div>
+        <strong>GitHub Gist</strong><span>Condiviso online, consigliato</span>
+      </div>
+      <div class="mode-btn${mode==='local'?' sel':''}" onclick="setupMode('local')">
+        <div style="font-size:22px">💾</div>
+        <strong>Locale</strong><span>Solo questo browser</span>
+      </div>
+    </div>
+    ${mode==='gist'?`<div class="info-b">
+      <strong>Setup GitHub Gist:</strong><br>
+      1. Vai su <code>github.com → Settings → Developer settings → Personal access tokens → Tokens (classic)</code><br>
+      2. Crea un token con scope <code>gist</code><br>
+      3. Condividi token + Gist ID coi colleghi<br>
+      4. Lascia Gist ID vuoto per crearne uno nuovo
+    </div>
+    <div class="fg"><label class="fl">GitHub Token (ghp_...)</label><input id="s-token" type="password" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"></div>
+    <div class="fg"><label class="fl">Gist ID (vuoto = crea nuovo)</label><input id="s-gistid" placeholder="a1b2c3d4e5f6..."></div>`
+    :`<div class="info-b">I dati vengono salvati nel browser. Usa Esporta/Importa JSON nelle impostazioni per condividere con i colleghi.</div>`}
+    <div id="setup-err" class="err-b" style="display:none"></div>
+    <button class="btn ba" style="width:100%;justify-content:center;margin-top:4px" id="setup-btn" onclick="doSetup()">
+      ✓ Inizia
+    </button>
+  </div></div>`;
+}
+
+function setupMode(m){S._setupMode=m;$id('root').innerHTML=renderSetup();}
+
+async function doSetup(){
+  const mode=S._setupMode||'gist';
+  const btn=$id('setup-btn');
+  const errEl=$id('setup-err');
+  btn.textContent='⏳ Connessione...';btn.disabled=true;errEl.style.display='none';
+  try{
+    if(mode==='gist'){
+      const tok=($id('s-token').value||'').trim();
+      if(!tok)throw new Error('Inserisci il token GitHub');
+      let gid=($id('s-gistid').value||'').trim();
+      if(!gid)gid=await gCreate(tok);
+      const data=await gLoad(tok,gid)||defData();
+      const cfg={mode:'gist',token:tok,gistId:gid};
+      localStorage.setItem(LS_CFG,JSON.stringify(cfg));
+      S.cfg=cfg;S.data=data;S.phase='login';render();
+    }else{
+      const cfg={mode:'local'};
+      let data=defData();
+      try{const saved=localStorage.getItem(LS_DATA);if(saved)data=JSON.parse(saved);}catch{}
+      localStorage.setItem(LS_CFG,JSON.stringify(cfg));
+      S.cfg=cfg;S.data=data;S.phase='login';render();
+    }
+  }catch(e){errEl.textContent=e.message;errEl.style.display='block';btn.textContent='✓ Inizia';btn.disabled=false;}
+}
+
+// ══════════ LOGIN SCREEN ══════════
+function renderLogin(){
+  return `<div class="full"><div class="login-c">
+    <div style="text-align:center;margin-bottom:20px">
+      <div class="screen-logo" style="font-size:13px">🚛 TrasportiApp</div>
+      <div class="screen-title" style="font-size:20px">Accedi</div>
+    </div>
+    <div class="fg"><label class="fl">Username</label><input id="l-user" placeholder="admin" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <div class="fg"><label class="fl">Password</label><input id="l-pass" type="password" placeholder="••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <div id="login-err" class="err-b" style="display:none"></div>
+    <button class="btn ba" style="width:100%;justify-content:center;margin-top:4px" onclick="doLogin()">✓ Accedi</button>
+    <button class="btn bg" style="width:100%;justify-content:center;margin-top:7px;font-size:11.5px" onclick="goReset()">Reimposta configurazione</button>
+  </div></div>`;
+}
+
+function doLogin(){
+  const u=($id('l-user').value||'').trim();
+  const p=($id('l-pass').value||'').trim();
+  const found=(S.data&&S.data.users||[{id:'u1',username:'admin',password:'admin',role:'admin',nome:'Amministratore'}]).find(x=>x.username===u&&x.password===p);
+  if(!found){const e=$id('login-err');e.textContent='Username o password errati';e.style.display='block';return;}
+  localStorage.setItem(LS_SESS,JSON.stringify(found));
+  S.user=found;S.phase='app';if(S.cfg&&S.cfg.mode==='gist')startSync();render();
+}
+
+function goReset(){
+  localStorage.removeItem(LS_CFG);localStorage.removeItem(LS_SESS);
+  S.cfg=null;S.user=null;S.data=null;S.phase='setup';S._setupMode='gist';render();
+}
+
+// ══════════ MODALS ══════════
+function renderModal(){
+  const mc=$id('modal-container');if(!mc)return;
+  mc.innerHTML=buildModal();
+}
+
+function buildModal(){
+  const t=S.modal,d=S.modalData||{};
+  const isAdmin=S.user.role==='admin';
+  if(t==='autista'){
+    const moOpts=(S.data.motrici||[]).map(m=>`<option value="${m.id}"${d.motrice_id===m.id?' selected':''}>${esc(m.targa)}</option>`).join('');
+    const riOpts=(S.data.rimorchi||[]).map(r=>`<option value="${r.id}"${d.rimorchio_id===r.id?' selected':''}>${esc(r.targa)}</option>`).join('');
+    return modal('Autista',`
+      <div class="sect">Dati personali</div>
+      <div class="g2"><div class="fg"><label class="fl">Nome *</label><input id="f-nome" value="${esc(d.nome||'')}"></div><div class="fg"><label class="fl">Cognome *</label><input id="f-cognome" value="${esc(d.cognome||'')}"></div></div>
+      <div class="g3"><div class="fg"><label class="fl">Data nascita</label><input id="f-nascita" type="date" value="${esc(d.data_nascita||'')}"></div><div class="fg"><label class="fl">Telefono</label><input id="f-tel" value="${esc(d.telefono||'')}"></div><div class="fg"><label class="fl">Email</label><input id="f-email" value="${esc(d.email||'')}"></div></div>
+      <div class="sep"></div><div class="sect">Porto & Mezzi</div>
+      <div class="g3">
+        <div class="fg"><label class="fl">Porto di competenza</label><select id="f-porto"><option value="LI"${(d.porto||'LI')==='LI'?' selected':''}>LI - Livorno</option><option value="SP"${d.porto==='SP'?' selected':''}>SP - La Spezia</option><option value="GE"${d.porto==='GE'?' selected':''}>GE - Genova</option></select></div>
+        <div class="fg"><label class="fl">Motrice default</label><select id="f-motrice"><option value="">— Nessuna —</option>${moOpts}</select></div>
+        <div class="fg"><label class="fl">Rimorchio default</label><select id="f-rimorchio"><option value="">— Nessuno —</option>${riOpts}</select></div>
+      </div>
+      <div class="sep"></div><div class="sect">Patente</div>
+      <div class="g3"><div class="fg"><label class="fl">N° Patente</label><input id="f-pat-num" value="${esc(d.patente_num||'')}"></div><div class="fg"><label class="fl">Tipo</label><select id="f-pat-tipo">${PAT_TYPES.map(t=>`<option${d.patente_tipo===t?' selected':''}>${t}</option>`).join('')}</select></div><div class="fg"><label class="fl">Scadenza</label><input id="f-pat-scad" type="date" value="${esc(d.patente_scad||'')}"></div></div>
+      <div class="sep"></div><div class="sect">CQC & Idoneità</div>
+      <div class="g2"><div class="fg"><label class="fl">N° CQC</label><input id="f-cqc-num" value="${esc(d.cqc_num||'')}"></div><div class="fg"><label class="fl">Scadenza visita medica</label><input id="f-vis-scad" type="date" value="${esc(d.visita_scad||'')}"></div></div>
+      <div class="fg"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;font-weight:600;color:#1e293b"><input id="f-adr" type="checkbox" ${d.adr?'checked':''} style="width:auto;width:16px;height:16px;accent-color:#f59e0b"> Abilitato ADR (trasporto merci pericolose)</label></div>
+      <div class="sep"></div>
+      <div class="fg"><label class="fl">Note</label><textarea id="f-note" rows="2">${esc(d.note||'')}</textarea></div>
+      <div class="fg"><label class="fl">Stato</label><select id="f-attivo"><option value="1"${d.attivo!==false?' selected':''}>Attivo</option><option value="0"${d.attivo===false?' selected':''}>Inattivo</option></select></div>
+    `);
+  }
+  if(t==='assenza'){
+    const autOpts=(S.data.autisti||[]).filter(a=>a.attivo!==false).map(a=>`<option value="${a.id}"${d.autista_id===a.id?' selected':''}>${esc(a.cognome)} ${esc(a.nome)}</option>`).join('');
+    return modal('Assenza',`
+      <div class="fg"><label class="fl">Autista *</label><select id="f-aut"><option value="">— Seleziona —</option>${autOpts}</select></div>
+      <div class="fg"><label class="fl">Tipo *</label><select id="f-tipo">${ASS_TYPES.map(t=>`<option${d.tipo===t?' selected':''}>${t}</option>`).join('')}</select></div>
+      <div class="g2"><div class="fg"><label class="fl">Data inizio *</label><input id="f-dal" type="date" value="${esc(d.data_inizio||td())}"></div><div class="fg"><label class="fl">Data fine *</label><input id="f-al" type="date" value="${esc(d.data_fine||td())}"></div></div>
+      <div class="fg"><label class="fl">Note</label><input id="f-note" value="${esc(d.note||'')}"></div>
+    `);
+  }
+  if(t==='motrice'){
+    return modal('Motrice',`
+      <div class="g2"><div class="fg"><label class="fl">Targa *</label><input id="f-targa" value="${esc(d.targa||'')}" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"></div><div class="fg"><label class="fl">Anno</label><input id="f-anno" type="number" value="${esc(d.anno||'')}" placeholder="2020"></div></div>
+      <div class="g2"><div class="fg"><label class="fl">Marca</label><input id="f-marca" value="${esc(d.marca||'')}"></div><div class="fg"><label class="fl">Modello</label><input id="f-modello" value="${esc(d.modello||'')}"></div></div>
+      <div class="sep"></div><div class="sect">Scadenze</div>
+      <div class="g3"><div class="fg"><label class="fl">Revisione</label><input id="f-rev" type="date" value="${esc(d.rev_scad||'')}"></div><div class="fg"><label class="fl">Assicurazione</label><input id="f-ass" type="date" value="${esc(d.ass_scad||'')}"></div><div class="fg"><label class="fl">Tachigrafo</label><input id="f-tach" type="date" value="${esc(d.tach_scad||'')}"></div></div>
+      <div class="fg"><label class="fl">Note</label><textarea id="f-note" rows="2">${esc(d.note||'')}</textarea></div>
+      <div class="fg"><label class="fl">Stato</label><select id="f-attivo"><option value="1"${d.attivo!==false?' selected':''}>Attiva</option><option value="0"${d.attivo===false?' selected':''}>Ferma</option></select></div>
+    `);
+  }
+  if(t==='rimorchio'){
+    return modal('Rimorchio',`
+      <div class="g2"><div class="fg"><label class="fl">Targa *</label><input id="f-targa" value="${esc(d.targa||'')}" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"></div><div class="fg"><label class="fl">Anno</label><input id="f-anno" type="number" value="${esc(d.anno||'')}"></div></div>
+      <div class="fg"><label class="fl">Tipo</label><input id="f-tipo" value="${esc(d.tipo||'')}" placeholder=""></div>
+      <div class="sep"></div><div class="sect">Scadenze</div>
+      <div class="g2"><div class="fg"><label class="fl">Revisione</label><input id="f-rev" type="date" value="${esc(d.rev_scad||'')}"></div><div class="fg"><label class="fl">Assicurazione</label><input id="f-ass" type="date" value="${esc(d.ass_scad||'')}"></div></div>
+      <div class="fg"><label class="fl">Note</label><textarea id="f-note" rows="2">${esc(d.note||'')}</textarea></div>
+      <div class="fg"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;font-weight:600;color:#1e293b"><input id="f-adr-r" type="checkbox" ${d.adr?'checked':''} style="width:16px;height:16px;accent-color:#f59e0b"> Idoneo ADR (trasporto merci pericolose)</label></div>
+      <div class="fg"><label class="fl">Stato</label><select id="f-attivo"><option value="1"${d.attivo!==false?' selected':''}>Attivo</option><option value="0"${d.attivo===false?' selected':''}>Fermo</option></select></div>
+    `);
+  }
+  if(t==='compagnia'){
+    return modal('Compagnia marittima',`
+      <div class="g2"><div class="fg"><label class="fl">Codice *</label><input id="f-codice" value="${esc(d.codice||'')}" placeholder="MSC" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"></div><div class="fg"><label class="fl">Nome completo</label><input id="f-nome" value="${esc(d.nome||'')}"></div></div>
+    `);
+  }
+  if(t==='user'){
+    return modal('Utente',`
+      <div class="g2"><div class="fg"><label class="fl">Nome *</label><input id="f-nome" value="${esc(d.nome||'')}"></div><div class="fg"><label class="fl">Username *</label><input id="f-username" value="${esc(d.username||'')}"></div></div>
+      <div class="g2"><div class="fg"><label class="fl">Password *</label><input id="f-password" type="password" value="${esc(d.password||'')}"></div><div class="fg"><label class="fl">Ruolo</label><select id="f-role" onchange="document.getElementById('perms-sec').style.display=this.value==='utente'?'block':'none'"><option value="admin"${d.role==='admin'?' selected':''}>Admin — accesso completo</option><option value="utente"${d.role==='utente'?' selected':''}>Utente — accesso selettivo</option><option value="reader"${d.role==='reader'?' selected':''}>Lettore — solo visualizzazione</option></select></div></div>
+      <div id="perms-sec" style="display:${d.role==='utente'?'block':'none'}">
+        <div class="sect" style="margin-top:10px">Permessi di modifica per questo utente</div>
+        <div class="g2" style="gap:8px">
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px"><input id="p-giorn" type="checkbox" ${(d.permissions||{}).giornaliero?'checked':''} style="width:15px;height:15px;accent-color:#f59e0b"> Giornaliero</label>
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px"><input id="p-autisti" type="checkbox" ${(d.permissions||{}).autisti?'checked':''} style="width:15px;height:15px;accent-color:#f59e0b"> Autisti</label>
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px"><input id="p-assenze" type="checkbox" ${(d.permissions||{}).assenze?'checked':''} style="width:15px;height:15px;accent-color:#f59e0b"> Assenze</label>
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px"><input id="p-motrici" type="checkbox" ${(d.permissions||{}).motrici?'checked':''} style="width:15px;height:15px;accent-color:#f59e0b"> Motrici</label>
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px"><input id="p-rimorchi" type="checkbox" ${(d.permissions||{}).rimorchi?'checked':''} style="width:15px;height:15px;accent-color:#f59e0b"> Rimorchi</label>
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px"><input id="p-compagnie" type="checkbox" ${(d.permissions||{}).compagnie?'checked':''} style="width:15px;height:15px;accent-color:#f59e0b"> Compagnie</label>
+        </div>
+      </div>
+    `);
+  }
+  if(t==='excel-export')return buildModal_excelExport();
+  if(t==='user-pwd'){
+    return modal('Cambia la tua password',`
+      <div class="fg"><label class="fl">Password attuale</label><input id="f-pwd-old" type="password" placeholder="••••••"></div>
+      <div class="fg"><label class="fl">Nuova password</label><input id="f-pwd-new" type="password" placeholder="••••••"></div>
+      <div class="fg"><label class="fl">Conferma nuova password</label><input id="f-pwd-new2" type="password" placeholder="••••••" onkeydown="if(event.key==='Enter')doModalSave()"></div>
+    `);
+  }
+  if(t==='confirm'){
+    return `<div class="ov" onclick="if(event.target===this)closeModal()"><div class="mod" style="max-width:360px"><div class="mh"><span class="mt">Conferma eliminazione</span></div><div class="mb"><p style="font-size:13px;color:#334155;margin-bottom:14px">${esc(d.msg||'Eliminare questo elemento?')}</p><div style="display:flex;justify-content:flex-end;gap:7px"><button class="btn bg" onclick="closeModal()">Annulla</button><button class="btn bd" onclick="S.confirmCb&&S.confirmCb()">Elimina</button></div></div></div></div>`;
+  }
+  return '';
+}
+
+function modal(title,body){
+  return `<div class="ov" onclick="if(event.target===this)closeModal()"><div class="mod">
+    <div class="mh"><span class="mt">${title}</span><button class="btn bg bxs" onclick="closeModal()">✕</button></div>
+    <div class="mb">${body}</div>
+    <div class="mf"><button class="btn bg" onclick="closeModal()">Annulla</button><button class="btn ba" onclick="doModalSave()">✓ Salva</button></div>
+  </div></div>`;
+}
+
+function doModalSave(){
+  const t=S.modal,d=S.modalData||{};
+  if(t==='autista')saveAutista(d.id);
+  else if(t==='assenza')saveAssenza(d.id);
+  else if(t==='motrice')saveMotrice(d.id);
+  else if(t==='rimorchio')saveRimorchio(d.id);
+  else if(t==='compagnia')saveCompagnia(d.id);
+  else if(t==='user')saveUser(d.id);
+  else if(t==='user-pwd')saveOwnPassword();
+  else if(t==='excel-export')doModalSave_excel();
+}
+
+function closeModal(){S.modal=null;S.modalData=null;const mc=$id('modal-container');if(mc)mc.innerHTML='';}
+function showModal(type,data){S.modal=type;S.modalData=data||{};renderModal();}
+function confirm2(msg,cb){S.modal='confirm';S.modalData={msg};S.confirmCb=()=>{cb();closeModal();};renderModal();}
+
+// ══════════ CRUD SAVES ══════════
+function g(id){return($id(id)||{}).value||'';}
+function gB(id){return($id(id)||{}).checked||false;}
+
+function saveAutista(existingId){
+  const nome=g('f-nome').trim(),cognome=g('f-cognome').trim();
+  if(!nome||!cognome){alert('Nome e cognome obbligatori');return;}
+  const item={
+    id:existingId||uid(),nome,cognome,
+    data_nascita:g('f-nascita'),telefono:g('f-tel'),email:g('f-email'),
+    porto:g('f-porto')||'LI',
+    motrice_id:g('f-motrice')||null,rimorchio_id:g('f-rimorchio')||null,
+    patente_num:g('f-pat-num'),patente_tipo:g('f-pat-tipo'),patente_scad:g('f-pat-scad'),
+    cqc_num:g('f-cqc-num'),adr:($id('f-adr')||{}).checked||false,
+    visita_scad:g('f-vis-scad'),
+    note:g('f-note'),attivo:g('f-attivo')==='1'
+  };
+  const data=S.data;
+  if(existingId)data.autisti=data.autisti.map(x=>x.id===existingId?item:x);
+  else data.autisti=[...(data.autisti||[]),item];
+  S.data=data;closeModal();scheduleSave(data);
+  const m=document.querySelector('.main');if(m)m.innerHTML=renderAutisti();
+}
+
+function saveAssenza(existingId){
+  const aid=g('f-aut'),tipo=g('f-tipo'),dal=g('f-dal'),al=g('f-al');
+  if(!aid||!dal||!al){alert('Autista, data inizio e fine obbligatorie');return;}
+  const item={id:existingId||uid(),autista_id:aid,tipo,data_inizio:dal,data_fine:al,note:g('f-note')};
+  const data=S.data;
+  if(existingId)data.assenze=data.assenze.map(x=>x.id===existingId?item:x);
+  else data.assenze=[...(data.assenze||[]),item];
+  S.data=data;closeModal();scheduleSave(data);
+  const m=document.querySelector('.main');if(m)m.innerHTML=renderAssenze();
+}
+
+function saveMotrice(existingId){
+  const targa=g('f-targa').trim().toUpperCase();
+  if(!targa){alert('Targa obbligatoria');return;}
+  const item={id:existingId||uid(),targa,anno:g('f-anno'),marca:g('f-marca'),modello:g('f-modello'),rev_scad:g('f-rev'),ass_scad:g('f-ass'),tach_scad:g('f-tach'),note:g('f-note'),attivo:g('f-attivo')==='1'};
+  const data=S.data;
+  if(existingId)data.motrici=data.motrici.map(x=>x.id===existingId?item:x);
+  else data.motrici=[...(data.motrici||[]),item];
+  S.data=data;closeModal();scheduleSave(data);
+  const m=document.querySelector('.main');if(m)m.innerHTML=renderMotrici();
+}
+
+function saveRimorchio(existingId){
+  const targa=g('f-targa').trim().toUpperCase();
+  if(!targa){alert('Targa obbligatoria');return;}
+  const item={id:existingId||uid(),targa,tipo:g('f-tipo'),anno:g('f-anno'),rev_scad:g('f-rev'),ass_scad:g('f-ass'),note:g('f-note'),adr:($id('f-adr-r')||{}).checked||false,attivo:g('f-attivo')==='1'};
+  const data=S.data;
+  if(existingId)data.rimorchi=data.rimorchi.map(x=>x.id===existingId?item:x);
+  else data.rimorchi=[...(data.rimorchi||[]),item];
+  S.data=data;closeModal();scheduleSave(data);
+  const m=document.querySelector('.main');if(m)m.innerHTML=renderRimorchi();
+}
+
+function saveCompagnia(existingId){
+  const codice=g('f-codice').trim().toUpperCase();
+  if(!codice){alert('Codice obbligatorio');return;}
+  const item={id:existingId||uid(),codice,nome:g('f-nome')};
+  const data=S.data;
+  if(existingId)data.compagnie=data.compagnie.map(x=>x.id===existingId?item:x);
+  else data.compagnie=[...(data.compagnie||[]),item];
+  S.data=data;closeModal();scheduleSave(data);
+  const m=document.querySelector('.main');if(m)m.innerHTML=renderCompagnie();
+}
+
+function saveUser(existingId){
+  const nome=g('f-nome').trim(),username=g('f-username').trim(),password=g('f-password').trim();
+  if(!nome||!username||!password){alert('Tutti i campi sono obbligatori');return;}
+  const role=g('f-role')||'reader';
+  let permissions={};
+  if(role==='utente'){permissions={giornaliero:!!($id('p-giorn')||{}).checked,autisti:!!($id('p-autisti')||{}).checked,assenze:!!($id('p-assenze')||{}).checked,motrici:!!($id('p-motrici')||{}).checked,rimorchi:!!($id('p-rimorchi')||{}).checked,compagnie:!!($id('p-compagnie')||{}).checked};}
+  const item={id:existingId||uid(),nome,username,password,role,permissions};
+  const data=S.data;
+  if(existingId)data.users=data.users.map(x=>x.id===existingId?item:x);
+  else data.users=[...(data.users||[]),item];
+  // Update session if editing self
+  if(existingId===S.user.id){S.user=item;localStorage.setItem(LS_SESS,JSON.stringify(item));}
+  S.data=data;closeModal();scheduleSave(data);
+  const m=document.querySelector('.main');if(m)m.innerHTML=renderImpost();
+}
+
+function saveOwnPassword(){
+  const oldPwd=($id('f-pwd-old')||{}).value||'';
+  const newPwd=($id('f-pwd-new')||{}).value||'';
+  const newPwd2=($id('f-pwd-new2')||{}).value||'';
+  if(!oldPwd||!newPwd||!newPwd2){alert('Compila tutti i campi');return;}
+  if(S.user.password!==oldPwd){alert('Password attuale non corretta');return;}
+  if(newPwd!==newPwd2){alert('Le nuove password non coincidono');return;}
+  if(newPwd.length<4){alert('La nuova password deve avere almeno 4 caratteri');return;}
+  const data=S.data;
+  data.users=data.users.map(u=>u.id===S.user.id?{...u,password:newPwd}:u);
+  S.user={...S.user,password:newPwd};
+  localStorage.setItem(LS_SESS,JSON.stringify(S.user));
+  S.data=data;closeModal();scheduleSave(data);
+  alert('Password cambiata con successo!');
+}
+
+// ══════════ SCADENZE PREFS ══════════
+const SCAD_CATS = [
+  {id:'patente',    label:'Patente',               icon:'📋'},
+  {id:'visita',     label:'Visita medica',          icon:'🏥'},
+  {id:'revisione',  label:'Revisioni (mezzi)',       icon:'🔧'},
+  {id:'assicurazione',label:'Assicurazioni (mezzi)', icon:'📄'},
+  {id:'tachigrafo', label:'Tachigrafo',              icon:'⏱'},
+];
+const LS_SCAD_PREFS = 'tc_scad_';
+function getScadPrefs(){
+  try{
+    const raw = localStorage.getItem(LS_SCAD_PREFS+(S.user&&S.user.id||''));
+    if(raw) return JSON.parse(raw);
+  }catch{}
+  return {
+    categorie:{patente:true,visita:true,revisione:true,assicurazione:true,tachigrafo:true},
+    soglie:{avviso:90,attenzione:60,critico:30},
+    email_dest:''
+  };
+}
+function saveScadPrefs(prefs){
+  localStorage.setItem(LS_SCAD_PREFS+(S.user&&S.user.id||''), JSON.stringify(prefs));
+}
+function applyScadPrefs(){
+  const prefs = getScadPrefs();
+  const cats = prefs.categorie||{};
+  const s = prefs.soglie||{avviso:90,attenzione:60,critico:30};
+  prefs.categorie = {
+    patente:    ($id('sp-patente')||{}).checked??cats.patente,
+    visita:     ($id('sp-visita')||{}).checked??cats.visita,
+    revisione:  ($id('sp-revisione')||{}).checked??cats.revisione,
+    assicurazione:($id('sp-assicurazione')||{}).checked??cats.assicurazione,
+    tachigrafo: ($id('sp-tachigrafo')||{}).checked??cats.tachigrafo,
+  };
+  prefs.soglie = {
+    avviso:    parseInt(($id('sp-avviso')||{}).value)||90,
+    attenzione:parseInt(($id('sp-attenzione')||{}).value)||60,
+    critico:   parseInt(($id('sp-critico')||{}).value)||30,
+  };
+  prefs.email_dest = ($id('sp-email')||{}).value||'';
+  saveScadPrefs(prefs);
+  const m=document.querySelector('.main');if(m)m.innerHTML=renderScadenze();
+}
+function sendScadEmail(){
+  applyScadPrefs();
+  const prefs=getScadPrefs();
+  const items=buildScadItems(prefs);
+  if(!items.length){alert('Nessuna scadenza da segnalare con i filtri impostati.');return;}
+  let body='RIEPILOGO SCADENZE - '+fd(td())+'\n\n';
+  items.forEach(it=>{
+    const stato=it.days<0?'SCADUTA':it.days<=prefs.soglie.critico?'CRITICA':it.days<=prefs.soglie.attenzione?'ATTENZIONE':'AVVISO';
+    body+=`[${stato}] ${it.tipo} — ${it.nome} — Scadenza: ${fd(it.scad)} (${it.days<0?'scad. '+Math.abs(it.days)+'gg fa':it.days+'gg'} )\n`;
+  });
+  const dest=prefs.email_dest||'';
+  const subj=encodeURIComponent('Scadenze Flotta — '+fd(td()));
+  const bodyEnc=encodeURIComponent(body);
+  window.location.href=`mailto:${dest}?subject=${subj}&body=${bodyEnc}`;
+}
+function buildScadItems(prefs){
+  const cats=prefs.categorie||{patente:true,visita:true,revisione:true,assicurazione:true,tachigrafo:true};
+  const soglia=prefs.soglie||{avviso:90};
+  const items=[];
+  if(cats.patente)(S.data.autisti||[]).filter(a=>a.attivo!==false).forEach(a=>{
+    const d=dTo(a.patente_scad);if(d!==null&&d<=soglia.avviso)items.push({tipo:'Patente',nome:`${a.cognome} ${a.nome}`,scad:a.patente_scad,days:d,cat:'autista'});
+  });
+  if(cats.visita)(S.data.autisti||[]).filter(a=>a.attivo!==false).forEach(a=>{
+    const d=dTo(a.visita_scad);if(d!==null&&d<=soglia.avviso)items.push({tipo:'Visita medica',nome:`${a.cognome} ${a.nome}`,scad:a.visita_scad,days:d,cat:'autista'});
+  });
+  if(cats.revisione){
+    (S.data.motrici||[]).forEach(m=>{const d=dTo(m.rev_scad);if(d!==null&&d<=soglia.avviso)items.push({tipo:'Revisione',nome:m.targa+' '+(m.marca||''),scad:m.rev_scad,days:d,cat:'motrice'});});
+    (S.data.rimorchi||[]).forEach(r=>{const d=dTo(r.rev_scad);if(d!==null&&d<=soglia.avviso)items.push({tipo:'Revisione',nome:r.targa,scad:r.rev_scad,days:d,cat:'rimorchio'});});
+  }
+  if(cats.assicurazione){
+    (S.data.motrici||[]).forEach(m=>{const d=dTo(m.ass_scad);if(d!==null&&d<=soglia.avviso)items.push({tipo:'Assicurazione',nome:m.targa+' '+(m.marca||''),scad:m.ass_scad,days:d,cat:'motrice'});});
+    (S.data.rimorchi||[]).forEach(r=>{const d=dTo(r.ass_scad);if(d!==null&&d<=soglia.avviso)items.push({tipo:'Assicurazione',nome:r.targa,scad:r.ass_scad,days:d,cat:'rimorchio'});});
+  }
+  if(cats.tachigrafo)(S.data.motrici||[]).forEach(m=>{
+    const d=dTo(m.tach_scad);if(d!==null&&d<=soglia.avviso)items.push({tipo:'Tachigrafo',nome:m.targa+' '+(m.marca||''),scad:m.tach_scad,days:d,cat:'motrice'});
+  });
+  items.sort((a,b)=>a.days-b.days);
+  return items;
+}
+
+// ══════════ EXCEL EXPORT ══════════
+function showExcelExportDialog(){S.modal='excel-export';S.modalData={};renderModal();}
+function buildModal_excelExport(){
+  const today2=td();
+  const days=Object.keys(S.data.giornaliero||{}).sort();
+  const firstDay=days[0]||today2;
+  return modal('📊 Esporta Giornaliero Excel',`
+    <p style="font-size:12.5px;color:#475569;margin-bottom:12px">Scegli il periodo. I giorni con dati saranno inclusi nell'Excel.</p>
+    <div class="g2">
+      <div class="fg"><label class="fl">Data inizio</label><input id="xl-dal" type="date" value="${firstDay}"></div>
+      <div class="fg"><label class="fl">Data fine</label><input id="xl-al" type="date" value="${today2}"></div>
+    </div>
+  `);
+}
+function doModalSave_excel(){
+  const dal=($id('xl-dal')||{}).value||td();
+  const al=($id('xl-al')||{}).value||td();
+  if(dal>al){alert('La data inizio deve essere prima della data fine');return;}
+  closeModal();exportExcelRange(dal,al);
+}
+function exportExcelRange(startDate,endDate){
+  if(typeof XLSX==='undefined'){alert('Libreria Excel non caricata. Controlla la connessione internet.');return;}
+  const wb=XLSX.utils.book_new();
+  const wsData=[];
+  wsData.push(['#','AUTISTA','MOTRICE','RIMORCHIO','Porto','Ora','I/E','Cntr','Destinazione','Note','Carrier','LV','RIUT','Dom. a','','Porto','Ora','I/E','Cntr','Destinazione','Note','Carrier','LV']);
+  let d=startDate;
+  while(d<=endDate){
+    const dd=S.data.giornaliero[d]||{rows:{},porto_overrides:{}};
+    const autisti2=(S.data.autisti||[]).filter(a=>a.attivo!==false);
+    const isM=new Date(d+'T12:00:00').getDay()===1;
+    const pD=offDate(d,-1);const pDD=S.data.giornaliero[pD]||{rows:{},porto_overrides:{}};
+    wsData.push([fd(d),'','','','','','','','','','','','','','','','','','','','','','']);
+    let anyRows=false;
+    PK.forEach(porto=>{
+      const list=autisti2.filter(a=>{
+        if(isAss(a.id,d,S.data.assenze||[]))return false;
+        let p;if(dd.porto_overrides[a.id])p=dd.porto_overrides[a.id];
+        else if(!isM&&pDD.porto_overrides[a.id])p=pDD.porto_overrides[a.id];
+        else p=a.porto||'LI';return p===porto;
+      });
+      if(!list.length)return;
+      wsData.push(['--- '+PORTI[porto]+' ('+porto+') ---','','','','','','','','','','','','','','','','','','','','','','']);
+      list.forEach((a,i)=>{
+        const sr=dd.rows[a.id]||{};
+        const v1={ora:'',ie:'',container:'',dest:'',note:'',comp:'',lv:false,...(sr.v1||{})};
+        const v2={porto:'',ora:'',ie:'',container:'',dest:'',note:'',comp:'',lv:false,...(sr.v2||{})};
+        const mot=sr.motrice!==undefined?sr.motrice:(a.last_motrice||getMTarga(a));
+        const rim=sr.rimorchio!==undefined?sr.rimorchio:(a.last_rimorchio||getRTarga(a));
+        wsData.push([i+1,a.cognome+' '+a.nome,mot,rim,v1.porto,v1.ora,v1.ie,v1.container,v1.dest,v1.note,getCC(v1.comp),v1.lv?'SI':'',sr.riut||'',sr.riut_dest||'','',v2.porto,v2.ora,v2.ie,v2.container,v2.dest,v2.note,getCC(v2.comp),v2.lv?'SI':'']);
+        anyRows=true;
+      });
+    });
+    if(!anyRows)wsData.push(['— nessuna assegnazione —','','','','','','','','','','','','','','','','','','','','','','']);
+    wsData.push([]);d=offDate(d,1);
+  }
+  const ws=XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols']=[{wch:4},{wch:22},{wch:10},{wch:10},{wch:7},{wch:7},{wch:5},{wch:8},{wch:20},{wch:14},{wch:8},{wch:4},{wch:6},{wch:16},{wch:2},{wch:7},{wch:7},{wch:5},{wch:8},{wch:20},{wch:14},{wch:8},{wch:4}];
+  XLSX.utils.book_append_sheet(wb,ws,'Giornaliero');
+  XLSX.writeFile(wb,'giornaliero_'+startDate+'_'+endDate+'.xlsx');
+}
+
+// ══════════ IMPORT/EXPORT ══════════
+function exportJSON(){
+  const a=document.createElement('a');
+  a.href='data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify(S.data,null,2));
+  a.download='backup_trasporti_'+td()+'.json';a.click();
+}
+
+function importJSON(input){
+  const f=input.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=e=>{
+    try{const d=JSON.parse(e.target.result);S.data=d;scheduleSave(d);render();alert('Dati importati con successo!');}
+    catch{alert('File JSON non valido');}
+  };
+  r.readAsText(f);input.value='';
+}
+
+function changeDate(v){S.date=v;const m=document.querySelector('.main');if(m)m.innerHTML=renderGiorn();}
+function setSearch(key,val){S.search[key]=val;const m=document.querySelector('.main');if(m){if(key==='autisti')m.innerHTML=renderAutisti();else if(key==='assenze')m.innerHTML=renderAssenze();else if(key==='motrici')m.innerHTML=renderMotrici();else if(key==='rimorchi')m.innerHTML=renderRimorchi();}}
+
+// ══════════ EVENT HANDLER ══════════
+document.addEventListener('click',function(e){
+  const btn=e.target.closest('[data-act]');if(!btn)return;
+  const act=btn.dataset.act;
+  if(act==='tab'){S.tab=btn.dataset.tab;render();return;}
+  if(act==='prevDay'){S.date=offDate(S.date,-1);const m=document.querySelector('.main');if(m)m.innerHTML=renderGiorn();return;}
+  if(act==='nextDay'){S.date=offDate(S.date,1);const m=document.querySelector('.main');if(m)m.innerHTML=renderGiorn();return;}
+  if(act==='goToday'){S.date=td();const m=document.querySelector('.main');if(m)m.innerHTML=renderGiorn();return;}
+  if(act==='up'){moveAutista(btn.dataset.dt,btn.dataset.aid,-1);return;}
+  if(act==='dn'){moveAutista(btn.dataset.dt,btn.dataset.aid,1);return;}
+  if(act==='mattino'){const aid2=btn.dataset.aid,dt2=btn.dataset.dt;const dd2=(S.data.giornaliero[dt2]||{rows:{}}).rows[aid2]||{};updateGiornCell(dt2,aid2,'mattino',!dd2.mattino);return;}
+  if(act==='newAutista'){showModal('autista',{});return;}
+  if(act==='editAutista'){const a=(S.data.autisti||[]).find(x=>x.id===btn.dataset.id);if(a)showModal('autista',{...a});return;}
+  if(act==='delAutista'){confirm2('Eliminare questo autista?',()=>{S.data.autisti=(S.data.autisti||[]).filter(x=>x.id!==btn.dataset.id);scheduleSave(S.data);const m=document.querySelector('.main');if(m)m.innerHTML=renderAutisti();});return;}
+  if(act==='newAssenza'){showModal('assenza',{});return;}
+  if(act==='editAssenza'){const a=(S.data.assenze||[]).find(x=>x.id===btn.dataset.id);if(a)showModal('assenza',{...a});return;}
+  if(act==='delAssenza'){confirm2('Eliminare questa assenza?',()=>{S.data.assenze=(S.data.assenze||[]).filter(x=>x.id!==btn.dataset.id);scheduleSave(S.data);const m=document.querySelector('.main');if(m)m.innerHTML=renderAssenze();});return;}
+  if(act==='newMotrice'){showModal('motrice',{});return;}
+  if(act==='editMotrice'){const a=(S.data.motrici||[]).find(x=>x.id===btn.dataset.id);if(a)showModal('motrice',{...a});return;}
+  if(act==='delMotrice'){confirm2('Eliminare questa motrice?',()=>{S.data.motrici=(S.data.motrici||[]).filter(x=>x.id!==btn.dataset.id);scheduleSave(S.data);const m=document.querySelector('.main');if(m)m.innerHTML=renderMotrici();});return;}
+  if(act==='newRimorchio'){showModal('rimorchio',{});return;}
+  if(act==='editRimorchio'){const a=(S.data.rimorchi||[]).find(x=>x.id===btn.dataset.id);if(a)showModal('rimorchio',{...a});return;}
+  if(act==='delRimorchio'){confirm2('Eliminare questo rimorchio?',()=>{S.data.rimorchi=(S.data.rimorchi||[]).filter(x=>x.id!==btn.dataset.id);scheduleSave(S.data);const m=document.querySelector('.main');if(m)m.innerHTML=renderRimorchi();});return;}
+  if(act==='newCompagnia'){showModal('compagnia',{});return;}
+  if(act==='editCompagnia'){const a=(S.data.compagnie||[]).find(x=>x.id===btn.dataset.id);if(a)showModal('compagnia',{...a});return;}
+  if(act==='delCompagnia'){confirm2('Eliminare questa compagnia?',()=>{S.data.compagnie=(S.data.compagnie||[]).filter(x=>x.id!==btn.dataset.id);scheduleSave(S.data);const m=document.querySelector('.main');if(m)m.innerHTML=renderCompagnie();});return;}
+  if(act==='newUser'){showModal('user',{});return;}
+  if(act==='editUser'){const a=(S.data.users||[]).find(x=>x.id===btn.dataset.id);if(a)showModal('user',{...a});return;}
+  if(act==='delUser'){confirm2('Eliminare questo utente?',()=>{S.data.users=(S.data.users||[]).filter(x=>x.id!==btn.dataset.id);scheduleSave(S.data);const m=document.querySelector('.main');if(m)m.innerHTML=renderImpost();});return;}
+  if(act==='logout'){localStorage.removeItem(LS_SESS);S.user=null;S.phase='login';render();return;}
+  if(act==='changePwd'){showModal('user-pwd',{});return;}
+  if(act==='resetCfg'){if(confirm('Reimpostare la configurazione? Tutti i dati locali saranno cancellati.'))goReset();return;}
+  if(act==='exportJSON'){exportJSON();return;}
+  if(act==='exportExcel'){showExcelExportDialog();return;}
+  if(act==='reloadGist'){(async()=>{showSaving(true);try{const d=await gLoad(S.cfg.token,S.cfg.gistId);S.data=d||defData();render();}catch(e){alert(e.message);}showSaving(false);})();return;}
+});
+
+document.addEventListener('change',function(e){
+  const el=e.target;
+  const fld=el.dataset.fld,aid=el.dataset.aid,dt=el.dataset.dt;
+  if(fld&&aid&&dt){
+    const val=el.type==='checkbox'?el.checked:el.value;
+    updateGiornCell(dt,aid,fld,val);
+    return;
+  }
+});
+
+document.addEventListener('input',function(e){
+  const el=e.target;
+  const fld=el.dataset.fld,aid=el.dataset.aid,dt=el.dataset.dt;
+  if(fld&&aid&&dt&&el.tagName==='INPUT'&&el.type!=='checkbox'&&el.type!=='time'&&el.type!=='date'){
+    const val=el.value;
+    updateGiornCell(dt,aid,fld,val);
+  }
+});
+
+// ══════════ AUTO-SYNC ══════════
+let syncTimer=null;
+let lastGistUpdated=null;
+
+async function checkSync(){
+  if(!S.cfg||S.cfg.mode!=='gist'||S.phase!=='app')return;
+  if(saveTimer)return; // ho modifiche locali in attesa, non sovrascrivere
+  try{
+    const r=await fetch(`https://api.github.com/gists/${S.cfg.gistId}`,{headers:{Authorization:`token ${S.cfg.token}`}});
+    if(!r.ok)return;
+    const g=await r.json();
+    const upd=g.updated_at;
+    if(lastGistUpdated&&upd!==lastGistUpdated){
+      // Dati cambiati: ricarica
+      const f=g.files[GIST_FILE];
+      if(f){
+        const newData=JSON.parse(f.content);
+        S.data=newData;
+        lastGistUpdated=upd;
+        // Aggiorna UI senza perdere posizione
+        const m=document.querySelector('.main');
+        if(m){
+          if(S.tab==='giornaliero')m.innerHTML=renderGiorn();
+          else if(S.tab==='autisti')m.innerHTML=renderAutisti();
+          else if(S.tab==='assenze')m.innerHTML=renderAssenze();
+          else if(S.tab==='motrici')m.innerHTML=renderMotrici();
+          else if(S.tab==='rimorchi')m.innerHTML=renderRimorchi();
+          else if(S.tab==='compagnie')m.innerHTML=renderCompagnie();
+          else if(S.tab==='scadenze')m.innerHTML=renderScadenze();
+          else if(S.tab==='impostazioni')m.innerHTML=renderImpost();
+        }
+        // Mostra notifica discreta
+        showSyncNotice();
+      }
+    }else if(!lastGistUpdated){
+      lastGistUpdated=upd;
+    }
+  }catch{}
+}
+
+function showSyncNotice(){
+  let el=$id('sync-notice');
+  if(!el){
+    el=document.createElement('div');
+    el.id='sync-notice';
+    el.style.cssText='position:fixed;bottom:16px;right:16px;background:#0c1c2e;color:#fff;font-size:12px;padding:7px 13px;border-radius:6px;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none';
+    document.body.appendChild(el);
+  }
+  el.textContent='🔄 Aggiornato';
+  el.style.opacity='1';
+  setTimeout(()=>{el.style.opacity='0';},2000);
+}
+
+function startSync(){
+  if(syncTimer)clearInterval(syncTimer);
+  syncTimer=setInterval(checkSync,20000); // ogni 20 secondi
+}
+
+// ══════════ INIT ══════════
+(async function init(){
+  S.phase='init';render();
+  let cfg=null,sess=null;
+  try{cfg=JSON.parse(localStorage.getItem(LS_CFG));}catch{}
+  try{sess=JSON.parse(localStorage.getItem(LS_SESS));}catch{}
+  if(!cfg){S._setupMode='gist';S.phase='setup';render();return;}
+  S.cfg=cfg;
+  if(cfg.mode==='local'){
+    let data=defData();
+    try{const saved=localStorage.getItem(LS_DATA);if(saved)data=JSON.parse(saved);}catch{}
+    S.data=data;
+    if(sess){S.user=sess;S.phase='app';}else S.phase='login';
+    render();return;
+  }
+  // Gist mode
+  if(sess){
+    S.user=sess;
+    try{
+      const r=await fetch(`https://api.github.com/gists/${cfg.gistId}`,{headers:{Authorization:`token ${cfg.token}`}});
+      if(r.ok){const g=await r.json();lastGistUpdated=g.updated_at;const f=g.files[GIST_FILE];S.data=f?JSON.parse(f.content):defData();}
+      else S.data=defData();
+    }catch{S.data=defData();}
+    S.phase='app';startSync();
+  }else{
+    try{
+      const r=await fetch(`https://api.github.com/gists/${cfg.gistId}`,{headers:{Authorization:`token ${cfg.token}`}});
+      if(r.ok){const g=await r.json();lastGistUpdated=g.updated_at;const f=g.files[GIST_FILE];S.data=f?JSON.parse(f.content):defData();}
+      else S.data=defData();
+    }catch{S.data=defData();}
+    S.phase='login';
+  }
+  render();
+})();
+</script>
+</body>
+</html>
