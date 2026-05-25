@@ -100,10 +100,7 @@ table.std tr:hover td{background:#fafbfd}
 .p-cnt{background:rgba(0,0,0,.07);border-radius:999px;padding:1px 6px;font-size:9.5px}
 /* Row states */
 .g-row:hover td{background:#fafbfc}
-.g-row.v1lv td.v1c{background:#fefce8!important}
-.g-row.v1lv td.v1c:hover{background:#fef9c3!important}
-.g-row.v2lv td.v2c{background:#fefce8!important}
-.g-row.v2lv td.v2c:hover{background:#fef9c3!important}
+/* LV colors now in additions */
 .g-row.assente td{background:#f9fafb;opacity:.65}
 /* Cell inputs */
 .ci{border:none;background:transparent;width:100%;padding:3px 4px;font-size:12px;color:#1e293b;font-family:inherit;border-radius:2px}
@@ -151,6 +148,20 @@ table.std tr:hover td{background:#fafbfd}
 /* Date nav */
 .date-nav{display:flex;align-items:center;gap:6px}
 .dt-in{width:140px!important;padding:5px 8px!important;font-weight:600!important;font-size:13px!important;border:1px solid #dde3eb!important;border-radius:5px}
+
+/* Column resize */
+.giorn-table th{position:relative}
+.rh{position:absolute;right:0;top:0;bottom:0;width:5px;cursor:col-resize;z-index:5;user-select:none}
+.rh:hover,.rh:active{background:rgba(245,158,11,.5)}
+/* Vivid yellow for lettera di vettura */
+.g-row.v1lv td.v1c{background:#fde047!important}
+.g-row.v1lv td.v1c:hover{background:#facc15!important}
+.g-row.v2lv td.v2c{background:#fde047!important}
+.g-row.v2lv td.v2c:hover{background:#facc15!important}
+/* Partial absence */
+.parz-v1{background:#fff7ed!important;opacity:.7}
+.parz-v2{background:#fff7ed!important;opacity:.7}
+.parz-badge{display:inline-block;background:#fed7aa;color:#9a3412;font-size:9.5px;font-weight:700;padding:1px 4px;border-radius:3px;margin-top:1px}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
@@ -308,7 +319,7 @@ function renderApp(){
     {id:'impostazioni',ic:'⚙️',lb:'Impostazioni'},
   ];
   let content='';
-  if(S.tab==='giornaliero')content=renderGiorn();
+  if(S.tab==='giornaliero'){content=renderGiorn();setTimeout(initColResize,10);}
   else if(S.tab==='autisti')content=renderAutisti();
   else if(S.tab==='assenze')content=renderAssenze();
   else if(S.tab==='motrici')content=renderMotrici();
@@ -355,14 +366,20 @@ function renderGiorn(){
     const sr=dd.rows[a.id]||{};
     const prevRow=prevDD.rows[a.id];
     const hasPrefill=prevRow&&prevRow.riut==='GD'&&(!sr.v1||(!sr.v1.ie&&!sr.v1.dest&&!sr.v1.comp));
+    // Use V2 data for prefill if V2 has a container (V2 riutilizzo)
+    const prefSrc=hasPrefill?(prevRow.v2&&prevRow.v2.container?prevRow.v2:prevRow.v1):null;
     // Motrice/rimorchio: use saved, or last used, or archive default
     const defMotrice=sr.motrice!==undefined?sr.motrice:(a.last_motrice||getMTarga(a));
+    // Check if motrice is in revision today
+    const mTarga=sr.motrice||a.last_motrice||getMTarga(a);
+    const motObj=(S.data.motrici||[]).find(m=>m.targa===mTarga);
+    const inRevision=motObj&&motObj.rev_prog_dal&&motObj.rev_prog_al&&date>=motObj.rev_prog_dal&&date<=motObj.rev_prog_al;
     const defRimorchio=sr.rimorchio!==undefined?sr.rimorchio:(a.last_rimorchio||getRTarga(a));
     const row={
       motrice:defMotrice,rimorchio:defRimorchio,
       riut:sr.riut||'',riut_dest:sr.riut_dest||'',mattino:sr.mattino||false,
       v1:{porto:porto,ora:'',ie:'',container:'',dest:'',note:'',comp:'',lv:false,ritira:'',...(sr.v1||{}),
-        ...(hasPrefill?{ie:'E',container:prevRow.v1&&prevRow.v1.container||'',comp:prevRow.v1&&prevRow.v1.comp||'',dest:prevRow.riut_dest||''}:{})
+        ...(hasPrefill?{ie:'E',container:prefSrc&&prefSrc.container||'',comp:prefSrc&&prefSrc.comp||'',dest:prevRow.riut_dest||''}:{})
       },
       v2:{porto:'',ora:'',ie:'',container:'',dest:'',note:'',comp:'',lv:false,ritira:'',...(sr.v2||{})},
     };
@@ -376,7 +393,13 @@ function renderGiorn(){
     return(a.cognome+a.nome).localeCompare(b.cognome+b.nome);
   });
   const assenti=[],byPorto={};
-  enriched.forEach(a=>{if(a.ass)assenti.push(a);else{if(!byPorto[a.porto])byPorto[a.porto]=[];byPorto[a.porto].push(a);}});
+  enriched.forEach(a=>{
+    if(a.ass){
+      const turno=a.ass.turno||'tutto';
+      if(turno==='tutto'){assenti.push(a);}
+      else{const aa={...a,parziale_turno:turno};if(!byPorto[a.porto])byPorto[a.porto]=[];byPorto[a.porto].push(aa);}
+    }else{if(!byPorto[a.porto])byPorto[a.porto]=[];byPorto[a.porto].push(a);}
+  });
   const cols=isAdmin?23:22;
   const thH=(lb,cls)=>`<th class="${cls}">${lb}</th>`;
   let html=`<div class="ph">
@@ -386,6 +409,7 @@ function renderGiorn(){
       <input type="date" class="dt-in" value="${date}" onchange="changeDate(this.value)">
       <button class="btn bg bs" data-act="nextDay">▶</button>
       <button class="btn bg bs" data-act="goToday">Oggi</button>
+      <button class="btn bg bs" onclick="resetColWidths()" title="Ripristina larghezze colonne">⟺</button>
     </div>
   </div>
   <div class="giorn-outer"><table class="giorn-table">
@@ -433,12 +457,14 @@ function renderGRow(a,idx,total,isAdmin,date){
   // V2 section
   let v2Html='';
   if(riut==='GD'){
+    const nxtDate=offDate(date,1);const nxtDD=(S.data.giornaliero[nxtDate]||{rows:{}});const nxtRow=nxtDD.rows[a.id];const nxtDest=nxtRow&&nxtRow.v1&&nxtRow.v1.dest?nxtRow.v1.dest:null;
     v2Html=`<td class="c-sep v2c" style="${v2bg}"></td>
     <td colspan="8" class="riut-gd v2c" style="padding:3px 10px;vertical-align:middle;${v2bg}">
       <div style="display:flex;align-items:center;gap:6px;color:#9a3412;font-size:11.5px;white-space:nowrap">
         <span style="font-size:15px;font-weight:700">⟶</span>
         <span>Ricarica domani a:</span>
         ${isAdmin?`<input class="ci" value="${esc(r.riut_dest||'')}" data-fld="riut_dest" ${d} placeholder="località" style="max-width:130px;font-weight:700;color:#9a3412">`:`<strong>${esc(r.riut_dest||'—')}</strong>`}
+        ${nxtDest?`<span style="color:#16a34a;font-size:10px;font-weight:600">✓ Già impostato: ${esc(nxtDest)}</span>`:''}
       </div>
     </td>`;
   }else{
@@ -463,6 +489,8 @@ function renderGRow(a,idx,total,isAdmin,date){
       <div class="a-nome">${esc(a.cognome)} ${esc(a.nome)}</div>
       ${isAdmin?`<select class="cs" data-fld="porto_override" ${d} onchange="updateGiornCell('${date}','${a.id}','porto_override',this.value)" style="font-size:10px;color:#94a3b8;margin-top:1px">${pAO}</select>`:`<div class="a-sub">${a.porto}</div>`}
       ${nextAss?`<div style="color:#dc2626;font-size:10px;font-weight:700;margin-top:2px">🔴 assente domani</div>`:''}
+      ${parz==='solo_am'?`<span class="parz-badge">assente mattina</span>`:parz==='solo_pm'?`<span class="parz-badge">assente pomeriggio</span>`:''}
+      ${inRevision?`<span style="display:inline-block;background:#fef3c7;color:#92400e;font-size:9.5px;font-weight:700;padding:1px 4px;border-radius:3px;margin-top:1px">🔧 motrice in revisione</span>`:''}
     </td>
     <td class="c-tg v1c" style="${v1bg}">${isAdmin?`<input class="ci" value="${esc(r.motrice||'')}" data-fld="motrice" ${d} placeholder="targa" style="font-family:monospace;font-weight:700;background:#fef9c3;color:#713f12;text-transform:uppercase">`:`<span class="tg-m">${esc(r.motrice||'—')}</span>`}</td>
     <td class="c-tg v1c" style="${v1bg}">${isAdmin?`<input class="ci" value="${esc(r.rimorchio||'')}" data-fld="rimorchio" ${d} placeholder="targa" style="font-family:monospace;font-weight:700;background:#fce7f3;color:#831843;text-transform:uppercase">`:`<span class="tg-r">${esc(r.rimorchio||'—')}</span>`}</td>
@@ -491,6 +519,7 @@ function updateGiornCell(date,aid,fld,val){
     const prevDD=data.giornaliero[prevDate]||{rows:{}};
     const prevRow=prevDD.rows[aid];
     const gdPrefill=prevRow&&prevRow.riut==='GD';
+    const pSrc=gdPrefill?(prevRow.v2&&prevRow.v2.container?prevRow.v2:prevRow.v1):null;
     const isMonday=new Date(date).getDay()===1;
     const prevPorto=!isMonday&&(data.giornaliero[prevDate]||{porto_overrides:{}}).porto_overrides&&(data.giornaliero[prevDate]||{porto_overrides:{}}).porto_overrides[aid];
     dd.rows[aid]={
@@ -499,7 +528,7 @@ function updateGiornCell(date,aid,fld,val){
       riut:'',riut_dest:'',mattino:false,
       v1:{porto:prevPorto||autista.porto||'LI',ora:'',
         ie:gdPrefill?'E':'',
-        container:gdPrefill&&prevRow.v1?prevRow.v1.container:'',
+        container:gdPrefill&&pSrc?pSrc.container:'',
         dest:gdPrefill?prevRow.riut_dest||'':'',
         note:'',comp:gdPrefill&&prevRow.v1?prevRow.v1.comp:'',
         lv:false,ritira:''},
@@ -510,7 +539,7 @@ function updateGiornCell(date,aid,fld,val){
   if(fld==='porto_override'){
     dd.porto_overrides[aid]=val;
     S.data=data;
-    const m=document.querySelector('.main');if(m)m.innerHTML=renderGiorn();
+    const m=document.querySelector('.main');if(m){m.innerHTML=renderGiorn();setTimeout(initColResize,0);}
     scheduleSave(data);return;
   }
   if(fld==='riut'){
@@ -799,7 +828,8 @@ function renderScadenze(){
     <span class="pt">⚠️ Scadenze</span>
     <div style="display:flex;gap:7px">
       <button class="btn ba" onclick="applyScadPrefs()">✓ Applica filtri</button>
-      <button class="btn bg" onclick="sendScadEmail()">📧 Invia riepilogo email</button>
+      <button class="btn bg" onclick="sendScadEmail()">📧 Apri email</button>
+      <button class="btn bg" onclick="copyScadEmail()">📋 Copia testo</button>
     </div>
   </div>
 
@@ -1008,6 +1038,7 @@ function buildModal(){
       <div class="fg"><label class="fl">Autista *</label><select id="f-aut"><option value="">— Seleziona —</option>${autOpts}</select></div>
       <div class="fg"><label class="fl">Tipo *</label><select id="f-tipo">${ASS_TYPES.map(t=>`<option${d.tipo===t?' selected':''}>${t}</option>`).join('')}</select></div>
       <div class="g2"><div class="fg"><label class="fl">Data inizio *</label><input id="f-dal" type="date" value="${esc(d.data_inizio||td())}"></div><div class="fg"><label class="fl">Data fine *</label><input id="f-al" type="date" value="${esc(d.data_fine||td())}"></div></div>
+      <div class="fg"><label class="fl">Disponibilità giornaliera</label><select id="f-turno"><option value="tutto"${(!d.turno||d.turno==='tutto')?' selected':''}>🔴 Tutto il giorno — non disponibile</option><option value="solo_pm"${d.turno==='solo_pm'?' selected':''}>🟡 Disponibile V1 (assente pomeriggio)</option><option value="solo_am"${d.turno==='solo_am'?' selected':''}>🟡 Disponibile V2 (assente mattina)</option></select></div>
       <div class="fg"><label class="fl">Note</label><input id="f-note" value="${esc(d.note||'')}"></div>
     `);
   }
@@ -1016,7 +1047,9 @@ function buildModal(){
       <div class="g2"><div class="fg"><label class="fl">Targa *</label><input id="f-targa" value="${esc(d.targa||'')}" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"></div><div class="fg"><label class="fl">Anno</label><input id="f-anno" type="number" value="${esc(d.anno||'')}" placeholder="2020"></div></div>
       <div class="g2"><div class="fg"><label class="fl">Marca</label><input id="f-marca" value="${esc(d.marca||'')}"></div><div class="fg"><label class="fl">Modello</label><input id="f-modello" value="${esc(d.modello||'')}"></div></div>
       <div class="sep"></div><div class="sect">Scadenze</div>
-      <div class="g3"><div class="fg"><label class="fl">Revisione</label><input id="f-rev" type="date" value="${esc(d.rev_scad||'')}"></div><div class="fg"><label class="fl">Assicurazione</label><input id="f-ass" type="date" value="${esc(d.ass_scad||'')}"></div><div class="fg"><label class="fl">Tachigrafo</label><input id="f-tach" type="date" value="${esc(d.tach_scad||'')}"></div></div>
+      <div class="g3"><div class="fg"><label class="fl">Revisione scadenza</label><input id="f-rev" type="date" value="${esc(d.rev_scad||'')}"></div><div class="fg"><label class="fl">Assicurazione</label><input id="f-ass" type="date" value="${esc(d.ass_scad||'')}"></div><div class="fg"><label class="fl">Tachigrafo</label><input id="f-tach" type="date" value="${esc(d.tach_scad||'')}"></div></div>
+      <div class="sep"></div><div class="sect">Revisione programmata</div>
+      <div class="g2"><div class="fg"><label class="fl">Data inizio revisione</label><input id="f-rp-dal" type="date" value="${esc(d.rev_prog_dal||'')}"></div><div class="fg"><label class="fl">Data fine revisione</label><input id="f-rp-al" type="date" value="${esc(d.rev_prog_al||'')}"></div></div>
       <div class="fg"><label class="fl">Note</label><textarea id="f-note" rows="2">${esc(d.note||'')}</textarea></div>
       <div class="fg"><label class="fl">Stato</label><select id="f-attivo"><option value="1"${d.attivo!==false?' selected':''}>Attiva</option><option value="0"${d.attivo===false?' selected':''}>Ferma</option></select></div>
     `);
@@ -1119,7 +1152,7 @@ function saveAutista(existingId){
 function saveAssenza(existingId){
   const aid=g('f-aut'),tipo=g('f-tipo'),dal=g('f-dal'),al=g('f-al');
   if(!aid||!dal||!al){alert('Autista, data inizio e fine obbligatorie');return;}
-  const item={id:existingId||uid(),autista_id:aid,tipo,data_inizio:dal,data_fine:al,note:g('f-note')};
+  const item={id:existingId||uid(),autista_id:aid,tipo,data_inizio:dal,data_fine:al,note:g('f-note'),turno:g('f-turno')||'tutto'};
   const data=S.data;
   if(existingId)data.assenze=data.assenze.map(x=>x.id===existingId?item:x);
   else data.assenze=[...(data.assenze||[]),item];
@@ -1234,6 +1267,14 @@ function applyScadPrefs(){
   prefs.email_dest = ($id('sp-email')||{}).value||'';
   saveScadPrefs(prefs);
   const m=document.querySelector('.main');if(m)m.innerHTML=renderScadenze();
+}
+function copyScadEmail(){
+  const prefs=getScadPrefs();
+  const items=buildScadItems(prefs);
+  if(!items.length){alert('Nessuna scadenza da segnalare.');return;}
+  let body='RIEPILOGO SCADENZE - '+fd(td())+'\n\n';
+  items.forEach(it=>{const stato=it.days<0?'SCADUTA':it.days<=(prefs.soglie.critico||30)?'CRITICA':it.days<=(prefs.soglie.attenzione||60)?'ATTENZIONE':'AVVISO';body+=`[${stato}] ${it.tipo} — ${it.nome} — Scadenza: ${fd(it.scad)} (${it.days<0?'scad. '+Math.abs(it.days)+'gg fa':it.days+'gg'})\n`;});
+  navigator.clipboard.writeText(body).then(()=>alert('Testo copiato! Incollalo nella tua email.')).catch(()=>{const t=document.createElement('textarea');t.value=body;document.body.appendChild(t);t.select();document.execCommand('copy');t.remove();alert('Testo copiato! Incollalo nella tua email.');});
 }
 function sendScadEmail(){
   applyScadPrefs();
@@ -1353,7 +1394,7 @@ function importJSON(input){
   r.readAsText(f);input.value='';
 }
 
-function changeDate(v){S.date=v;const m=document.querySelector('.main');if(m)m.innerHTML=renderGiorn();}
+function changeDate(v){S.date=v;const m=document.querySelector('.main');if(m){m.innerHTML=renderGiorn();setTimeout(initColResize,0);}}
 function setSearch(key,val){S.search[key]=val;const m=document.querySelector('.main');if(m){if(key==='autisti')m.innerHTML=renderAutisti();else if(key==='assenze')m.innerHTML=renderAssenze();else if(key==='motrici')m.innerHTML=renderMotrici();else if(key==='rimorchi')m.innerHTML=renderRimorchi();}}
 
 // ══════════ EVENT HANDLER ══════════
@@ -1412,6 +1453,37 @@ document.addEventListener('input',function(e){
   }
 });
 
+
+// ══════════ COLUMN RESIZE ══════════
+function getColWidths(){try{return JSON.parse(localStorage.getItem('tc_cw')||'{}');}catch{return{};}}
+function saveColWidths(w){localStorage.setItem('tc_cw',JSON.stringify(w));}
+function resetColWidths(){localStorage.removeItem('tc_cw');const m=document.querySelector('.main');if(m)m.innerHTML=renderGiorn();setTimeout(initColResize,0);}
+function initColResize(){
+  const tbl=document.querySelector('.giorn-table');if(!tbl)return;
+  const ths=tbl.querySelectorAll('thead th');
+  const saved=getColWidths();
+  ths.forEach((th,i)=>{
+    if(saved[i])th.style.width=saved[i]+'px';
+    if(!th.querySelector('.rh')){const rh=document.createElement('div');rh.className='rh';th.appendChild(rh);}
+  });
+}
+let _rcol=null;
+document.addEventListener('mousedown',function(e){
+  if(!e.target.classList.contains('rh'))return;
+  const th=e.target.closest('th');
+  const ths=[...th.closest('tr').querySelectorAll('th')];
+  _rcol={th,ci:ths.indexOf(th),x0:e.clientX,w0:th.offsetWidth};
+  e.preventDefault();
+});
+document.addEventListener('mousemove',function(e){
+  if(!_rcol)return;
+  _rcol.th.style.width=Math.max(24,_rcol.w0+e.clientX-_rcol.x0)+'px';
+  e.preventDefault();
+});
+document.addEventListener('mouseup',function(){
+  if(!_rcol)return;
+  const w=getColWidths();w[_rcol.ci]=Math.round(_rcol.th.offsetWidth);saveColWidths(w);_rcol=null;
+});
 // ══════════ AUTO-SYNC ══════════
 let syncTimer=null;
 let lastGistUpdated=null;
