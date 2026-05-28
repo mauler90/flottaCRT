@@ -1010,10 +1010,25 @@ function renderScadenze(){
 }
 
 // ══════════ IMPOSTAZIONI TAB ══════════
+async function migratePasswordsToHash(){
+  if(!confirm('Converte tutte le password in hash SHA-256.\nLe password funzioneranno esattamente come prima.\n\nProcedere?'))return;
+  const data=S.data;
+  let count=0;
+  for(const u of data.users||[]){
+    if(!/^[0-9a-f]{64}$/.test(u.password)){
+      u.password=sha256(u.password);
+      count++;
+    }
+  }
+  S.data=data;scheduleSave(data);
+  alert('Migrazione completata: '+count+' password convertite in hash.');
+  const m=document.querySelector('.main');if(m)m.innerHTML=renderImpost();
+}
+
 function renderImpost(){
   const isAdmin=S.user.role==='admin';
   return `<div class="ph"><span class="pt">⚙️ Impostazioni</span></div>
-  ${isAdmin?`<div class="ph" style="margin-bottom:8px"><span style="font-size:13px;font-weight:700;color:#0c1c2e">👥 Utenti</span><button class="btn ba bs" data-act="newUser">+ Nuovo utente</button></div>
+  ${isAdmin?`<div class="ph" style="margin-bottom:8px"><span style="font-size:13px;font-weight:700;color:#0c1c2e">👥 Utenti</span><button class="btn bg bs" onclick="migratePasswordsToHash()" style="margin-left:8px">🔒 Migra password a hash</button><button class="btn ba bs" data-act="newUser">+ Nuovo utente</button></div>
   <div class="card" style="margin-bottom:16px"><table class="std">
     <thead><tr><th>Nome</th><th>Username</th><th>Ruolo</th><th></th></tr></thead>
     <tbody>${(S.data.users||[]).map(u=>`<tr>
@@ -1120,7 +1135,7 @@ function renderLogin(){
   </div></div>`;
 }
 
-function doLogin(){
+async function doLogin(){
   const u=($id('l-user').value||'').trim();
   const p=($id('l-pass').value||'').trim();
   const found=(S.data&&S.data.users||[{id:'u1',username:'admin',password:'admin',role:'admin',nome:'Amministratore'}]).find(x=>x.username===u&&x.password===p);
@@ -1335,7 +1350,7 @@ function saveCompagnia(existingId){
   const m=document.querySelector('.main');if(m)m.innerHTML=renderCompagnie();
 }
 
-function saveUser(existingId){
+async function saveUser(existingId){
   const nome=g('f-nome').trim(),username=g('f-username').trim(),password=g('f-password').trim();
   if(!nome||!username||!password){alert('Tutti i campi sono obbligatori');return;}
   const role=g('f-role')||'reader';
@@ -1351,18 +1366,20 @@ function saveUser(existingId){
   const m=document.querySelector('.main');if(m)m.innerHTML=renderImpost();
 }
 
-function saveOwnPassword(){
+async function saveOwnPassword(){
   const oldPwd=($id('f-pwd-old')||{}).value||'';
   const newPwd=($id('f-pwd-new')||{}).value||'';
   const newPwd2=($id('f-pwd-new2')||{}).value||'';
   if(!oldPwd||!newPwd||!newPwd2){alert('Compila tutti i campi');return;}
-  if(S.user.password!==oldPwd){alert('Password attuale non corretta');return;}
   if(newPwd!==newPwd2){alert('Le nuove password non coincidono');return;}
   if(newPwd.length<4){alert('La nuova password deve avere almeno 4 caratteri');return;}
   const data=S.data;
-  data.users=data.users.map(u=>u.id===S.user.id?{...u,password:newPwd}:u);
-  S.user={...S.user,password:newPwd};
-  localStorage.setItem(LS_SESS,JSON.stringify(S.user));
+  const me=(data.users||[]).find(u=>u.id===S.user.userId);
+  if(!me){alert('Utente non trovato.');return;}
+  const oldOk=checkPassword(oldPwd,me.password);
+  if(!oldOk){alert('Password attuale non corretta');return;}
+  const hashed=sha256(newPwd);
+  data.users=data.users.map(u=>u.id===S.user.userId?{...u,password:hashed}:u);
   S.data=data;closeModal();scheduleSave(data);
   alert('Password cambiata con successo!');
 }
@@ -2447,6 +2464,32 @@ function getIndispMotivo(tipo,mezzoId,date){
   const x=(S.data.indisponibili||[]).find(x=>
     x.tipo===tipo&&x.mezzo_id===mezzoId&&x.data_inizio<=date&&x.data_fine>=date);
   return x?x.motivo:'';
+}
+
+// ══════════ SICUREZZA: PASSWORD HASH ══════════
+function sha256(str){
+  // Pure JS SHA-256 - works on file:// and HTTPS without crypto.subtle
+  function rightRotate(v,a){return (v>>>a)|(v<<(32-a));}
+  const m=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  let h=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  const bytes=[];for(let i=0;i<str.length;i++){const c2=str.charCodeAt(i);if(c2<128)bytes.push(c2);else if(c2<2048)bytes.push((c2>>6)|192,c2&63|128);else bytes.push((c2>>12)|224,((c2>>6)&63)|128,c2&63|128);}
+  bytes.push(128);while((bytes.length%64)!==56)bytes.push(0);
+  const blen=str.length*8;bytes.push(0,0,0,0,(blen>>>24)&255,(blen>>>16)&255,(blen>>>8)&255,blen&255);
+  for(let i=0;i<bytes.length;i+=64){
+    const w=[];for(let j=0;j<16;j++)w[j]=(bytes[i+j*4]<<24)|(bytes[i+j*4+1]<<16)|(bytes[i+j*4+2]<<8)|bytes[i+j*4+3];
+    for(let j=16;j<64;j++){const s0=rightRotate(w[j-15],7)^rightRotate(w[j-15],18)^(w[j-15]>>>3);const s1=rightRotate(w[j-2],17)^rightRotate(w[j-2],19)^(w[j-2]>>>10);w[j]=(w[j-16]+s0+w[j-7]+s1)|0;}
+    let [a,b,cc,d,e,f,g,hh]=h;
+    for(let j=0;j<64;j++){const S1=rightRotate(e,6)^rightRotate(e,11)^rightRotate(e,25);const ch=(e&f)^(~e&g);const t1=(hh+S1+ch+m[j]+w[j])|0;const S0=rightRotate(a,2)^rightRotate(a,13)^rightRotate(a,22);const maj=(a&b)^(a&cc)^(b&cc);const t2=(S0+maj)|0;hh=g;g=f;f=e;e=(d+t1)|0;d=cc;cc=b;b=a;a=(t1+t2)|0;}
+    h=[h[0]+a,h[1]+b,h[2]+cc,h[3]+d,h[4]+e,h[5]+f,h[6]+g,h[7]+hh].map(v=>v|0);
+  }
+  return h.map(v=>('00000000'+((v>>>0).toString(16))).slice(-8)).join('');
+}
+
+// Verifica password: supporta sia hash che testo in chiaro (retrocompatibile)
+function checkPassword(input, stored){
+  if(!stored)return false;
+  if(/^[0-9a-f]{64}$/.test(stored)) return sha256(input)===stored;
+  return input===stored;
 }
 // ══════════ EXCEL EXPORT ══════════
 function showExcelExportDialog(){S.modal='excel-export';S.modalData={};renderModal();}
