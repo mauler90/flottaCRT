@@ -1563,6 +1563,21 @@ setTimeout(()=>window.print(),300);
 }
 
 
+async function listGistArchives(){
+  if(!S.cfg||S.cfg.mode!=='gist')return[];
+  try{
+    const r=await fetch(`https://api.github.com/gists/${S.cfg.gistId}`,{
+      headers:{Authorization:`token ${S.cfg.token}`}
+    });
+    if(!r.ok)return[];
+    const g=await r.json();
+    return Object.keys(g.files||{})
+      .filter(f=>/^trasporti_\d{4}\.json$/.test(f))
+      .map(f=>f.match(/\d{4}/)[0])
+      .sort().reverse();
+  }catch(e){return[];}
+}
+
 async function archiveYearToGist(year){
   if(!S.cfg||S.cfg.mode!=='gist'){alert('Funzione disponibile solo in modalità Gist.');return;}
   const archDays=Object.entries(S.data.giornaliero||{}).filter(([k])=>k.startsWith(year));
