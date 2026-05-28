@@ -211,7 +211,7 @@ function defData(){return{
     {id:'c10',codice:'HMM',nome:'Hyundai Merchant Marine'},
     {id:'c11',codice:'ZIM',nome:'ZIM Integrated Shipping'},
   ],
-  assenze:[],giornaliero:{},
+  assenze:[],giornaliero:{},riutilizzi_pending:[],indisponibili:[],
   users:[
     {id:'u1',username:'admin',password:'admin',role:'admin',nome:'Amministratore'},
     {id:'u2',username:'viewer',password:'viewer',role:'reader',nome:'Visualizzatore'},
@@ -255,12 +255,15 @@ function nextWorkingDay(date){
 }
 function countAlerts(){
   if(!S.data)return 0;
+  const prefs=getScadPrefs();
+  const critico=prefs.soglie&&prefs.soglie.critico!=null?prefs.soglie.critico:30;
+  const cats=prefs.categorie||{patente:true,visita:true,revisione:true,assicurazione:true,tachigrafo:true};
   let n=0;
-  (S.data.autisti||[]).filter(a=>a.attivo!==false).forEach(a=>{
-    [a.patente_scad,a.visita_scad].forEach(d=>{const x=dTo(d);if(x!==null&&x<=(getScadPrefs().soglie.critico||30))n++;});
-  });
-  (S.data.motrici||[]).forEach(m=>[m.rev_scad,m.ass_scad,m.tach_scad].forEach(d=>{const x=dTo(d);if(x!==null&&x<=(getScadPrefs().soglie.critico||30))n++;}));
-  (S.data.rimorchi||[]).forEach(r=>[r.rev_scad,r.ass_scad].forEach(d=>{const x=dTo(d);if(x!==null&&x<=(getScadPrefs().soglie.critico||30))n++;}));
+  if(cats.patente)(S.data.autisti||[]).filter(a=>a.attivo!==false).forEach(a=>{const x=dTo(a.patente_scad);if(x!==null&&x<=critico)n++;});
+  if(cats.visita)(S.data.autisti||[]).filter(a=>a.attivo!==false).forEach(a=>{const x=dTo(a.visita_scad);if(x!==null&&x<=critico)n++;});
+  if(cats.revisione){(S.data.motrici||[]).forEach(m=>{const x=dTo(m.rev_scad);if(x!==null&&x<=critico)n++;});(S.data.rimorchi||[]).forEach(r=>{const x=dTo(r.rev_scad);if(x!==null&&x<=critico)n++;});}
+  if(cats.assicurazione){(S.data.motrici||[]).forEach(m=>{const x=dTo(m.ass_scad);if(x!==null&&x<=critico)n++;});(S.data.rimorchi||[]).forEach(r=>{const x=dTo(r.ass_scad);if(x!==null&&x<=critico)n++;});}
+  if(cats.tachigrafo)(S.data.motrici||[]).forEach(m=>{const x=dTo(m.tach_scad);if(x!==null&&x<=critico)n++;});
   return n;
 }
 
@@ -336,6 +339,8 @@ function renderApp(){
     {id:'motrici',ic:'🚛',lb:'Motrici'},
     {id:'rimorchi',ic:'🚌',lb:'Rimorchi'},
     {id:'compagnie',ic:'🚢',lb:'Compagnie'},
+    {id:'riutilizzi',ic:'🔄',lb:'Riutilizzi',badge:(S.data.riutilizzi_pending||[]).length||0},
+    {id:'storico',ic:'🔍',lb:'Storico'},
     {id:'scadenze',ic:'⚠️',lb:'Scadenze',badge:alerts},
     {id:'impostazioni',ic:'⚙️',lb:'Impostazioni'},
   ];
@@ -346,12 +351,14 @@ function renderApp(){
   else if(S.tab==='motrici')content=renderMotrici();
   else if(S.tab==='rimorchi')content=renderRimorchi();
   else if(S.tab==='compagnie')content=renderCompagnie();
+  else if(S.tab==='riutilizzi')content=renderRiutilizzi();
+  else if(S.tab==='storico')content=renderStorico();
   else if(S.tab==='scadenze')content=renderScadenze();
   else if(S.tab==='impostazioni')content=renderImpost();
   return `<div class="app">
     <div class="sb">
       <div class="sb-top"><img src="data:image/png;base64,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" style="width:100%;max-width:160px;display:block;margin-bottom:6px;border-radius:3px" alt="CRT"><div class="sb-name">Gestione Flotta</div></div>
-      <nav class="sb-nav">${nav.map(n=>`<button class="ni${S.tab===n.id?' on':''}" data-act="tab" data-tab="${n.id}"><span>${n.ic}</span><span>${n.lb}</span>${n.badge?`<span class="badge-num">${n.badge}</span>`:''}</button>`).join('')}</nav>
+      <nav class="sb-nav">${nav.filter(n=>!n.hide).map(n=>`<button class="ni${S.tab===n.id?' on':''}" data-act="tab" data-tab="${n.id}"><span>${n.ic}</span><span>${n.lb}</span>${n.badge?`<span class="badge-num">${n.badge}</span>`:''}</button>`).join('')}</nav>
       <div class="sb-bot">
         <div class="sb-user"><strong>${esc(S.user.nome)}</strong><small>${S.user.role==='admin'?'Amministratore':'Solo lettura'}</small></div>
         <div style="padding:3px 8px;font-size:9.5px;color:rgba(255,255,255,.2);margin-bottom:3px">© Vittorio Zingoni 2026</div>
@@ -394,6 +401,13 @@ function renderGiorn(){
     // Motrice/rimorchio: use saved, or last used, or archive default
     const defMotrice=sr.motrice!==undefined?sr.motrice:(a.last_motrice||getMTarga(a));
     const defRimorchio=sr.rimorchio!==undefined?sr.rimorchio:(a.last_rimorchio||getRTarga(a));
+    // Check indisponibilità
+    const motObj=(S.data.motrici||[]).find(m=>m.targa===defMotrice);
+    const rimObj=(S.data.rimorchi||[]).find(r=>r.targa===defRimorchio);
+    const motIndisp=motObj&&isIndisp('motrice',motObj.id,date);
+    const rimIndisp=rimObj&&isIndisp('rimorchio',rimObj.id,date);
+    const motIndispTip=motIndisp?getIndispMotivo('motrice',motObj.id,date):'';
+    const rimIndispTip=rimIndisp?getIndispMotivo('rimorchio',rimObj.id,date):'';
     const row={
       motrice:defMotrice,rimorchio:defRimorchio,
       riut:sr.riut||'',riut_dest:sr.riut_dest||'',mattino:sr.mattino||false,
@@ -452,6 +466,53 @@ function renderGiorn(){
     html+=`<tr class="porto-hr p-${porto}"><td colspan="${cols}"><div class="porto-lbl">⚓ ${PORTI[porto]} (${porto}) <span class="p-cnt">${list.length}</span></div></td></tr>`;
     list.forEach((a,i)=>{html+=renderGRow(a,i,list.length,isAdmin,date);});
   });
+
+
+  // Riutilizzi approvati per questa data (senza autista)
+  const approvedRiut=(S.data.riutilizzi_pending||[]).filter(r=>r.giornaliero_approved&&r.date===date);
+  if(approvedRiut.length){
+    const autOpts2=(S.data.autisti||[]).filter(a=>a.attivo!==false)
+      .map(a=>'<option value="'+a.id+'">'+esc(a.soprannome||a.cognome+' '+a.nome)+'</option>').join('');
+    html+=`<tr class="porto-hr"><td colspan="${cols}" style="padding:0">
+      <div class="porto-lbl" style="background:#fff7ed;border-left:3px solid #f97316;color:#9a3412;display:flex;align-items:center;gap:8px">
+        🔄 Riutilizzi da abbinare <span class="p-cnt">${approvedRiut.length}</span>
+      </div></td></tr>`;
+    approvedRiut.forEach(r=>{
+      const v1=r.v1||{},v2=r.v2||{};
+      html+=`<tr style="background:#fff7ed">
+        ${isAdmin?'<td class="c-ord"></td>':''}
+        <td class="c-num"></td>
+        <td class="c-aut" style="padding:4px 6px" colspan="3">
+          <div style="font-size:10px;font-weight:700;color:#9a3412;margin-bottom:4px">
+            ${r.riut==='GD'
+              ?('📥 '+fd(r.date)+' '+esc(v1.porto||'')+' '+esc(v1.ora||'')+' '+esc(v1.dest||'')+' &nbsp;<span style="color:#f59e0b">→ GD</span>&nbsp; 📤 '+fd(offDate(r.date,1))+' '+esc(v2.porto||'')+' '+esc(v2.ora||'')+' '+esc(v2.dest||''))
+              :('📥 '+esc(v1.porto||'')+' '+esc(v1.ora||'')+' '+esc(v1.dest||'')+' &nbsp;↕&nbsp; 📤 '+esc(v2.porto||'')+' '+esc(v2.ora||'')+' '+esc(v2.dest||''))
+            }
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <select id="giorn-aut-${r.id}" style="font-size:12px;padding:3px 6px;border:1px solid #fed7aa;border-radius:4px;background:#fff;flex:1">
+              <option value="">— Seleziona autista —</option>${autOpts2}
+            </select>
+            <button class="btn ba bxs" onclick="abbina('${r.id}')">📌 Abbina</button>
+            <button class="btn bd bxs" onclick="deleteRiutilizzo('${r.id}')">🗑</button>
+          </div>
+        </td>
+        <td style="font-size:11px;color:#1d4ed8;font-weight:700">I</td>
+        <td style="font-size:11px">${esc(v1.ora||'')}</td><td></td>
+        <td style="font-size:11px">${esc(v1.container||'')}</td>
+        <td style="font-size:11px">${esc(v1.dest||'')}</td>
+        <td></td><td style="font-size:11px;font-weight:600">${esc(getCC(v1.comp))}</td>
+        <td></td><td></td><td class="c-sep"></td><td></td>
+        <td style="font-size:11px">${esc(v2.ora||'')}</td>
+        <td style="font-size:11px;color:#c2410c;font-weight:700">E</td>
+        <td style="font-size:11px">${esc(v2.container||'')}</td>
+        <td style="font-size:11px">${esc(v2.dest||'')}</td>
+        <td></td><td style="font-size:11px;font-weight:600">${esc(getCC(v2.comp))}</td>
+        <td></td>
+      </tr>`;
+    });
+  }
+
   if(assenti.length){
     html+=`<tr class="porto-hr p-ASS"><td colspan="${cols}"><div class="porto-lbl">🔴 Non disponibili <span class="p-cnt">${assenti.length}</span></div></td></tr>`;
     assenti.forEach(a=>{
@@ -493,15 +554,36 @@ function renderGRow(a,idx,total,isAdmin,date){
     const nxtDate=offDate(date,1);const nxtDD=(S.data.giornaliero[nxtDate]||{rows:{}});const nxtRow=nxtDD.rows[a.id];const nxtDest=nxtRow&&nxtRow.v1&&nxtRow.v1.dest?nxtRow.v1.dest:'';
     const gdDisplayVal=nxtDest||r.riut_dest||'';
     const gdConfirmed=!!nxtDest;
-    v2Html=`<td class="c-sep v2c" style="${v2bg}"></td>
-    <td colspan="8" class="riut-gd v2c" style="padding:3px 10px;vertical-align:middle;${v2bg}">
-      <div style="display:flex;align-items:center;gap:6px;color:#9a3412;font-size:11.5px;white-space:nowrap">
-        <span style="font-size:15px;font-weight:700">⟶</span>
-        <span>Ricarica domani a:</span>
-        ${isAdmin?`<input class="ci" value="${esc(gdDisplayVal)}" data-fld="riut_dest" ${d} placeholder="località" style="max-width:140px;font-weight:700;color:${gdConfirmed?'#16a34a':'#9a3412'}">`:`<strong style="color:${gdConfirmed?'#16a34a':'#9a3412'}">${esc(gdDisplayVal||'—')}</strong>`}
-        ${gdConfirmed?`<span style="color:#16a34a;font-size:10px">✓ confermato</span>`:''}
-      </div>
-    </td>`;
+    const v2HasData=!!(v2.container||v2.dest||v2.ora);
+    if(v2HasData){
+      // V2 has actual data (afternoon trip): show it + riut_dest below
+      // Use string concatenation to avoid 3-level template literal nesting
+      const gdDestRow='<div style="color:#9a3412;font-size:9.5px;margin-top:1px">⟶ domani: '
+        +(isAdmin?'<input class="ci" value="'+esc(gdDisplayVal)+'" data-fld="riut_dest" '+d+' placeholder="dest. domani" style="max-width:100px;font-weight:700;color:'+(gdConfirmed?'#16a34a':'#9a3412')+'">':'<strong>'+esc(gdDisplayVal||'—')+'</strong>')
+        +'</div>';
+      const v2DestCell=isAdmin
+        ?('<div><div style="display:flex;gap:2px;align-items:center"><input class="ci" value="'+esc(v2.dest||'')+'" data-fld="v2.dest" '+d+' placeholder="destinazione"><button class="ritira-btn'+(v2.ritira?' on':'')+'" data-ev="ritira" data-vg="v2" data-date="'+date+'" data-aid="'+a.id+'">👤</button></div>'+gdDestRow+'</div>')
+        :('<div><span>'+esc(v2.dest||'')+'</span>'+(v2.ritira?'<div class="ritira-txt">'+esc(v2.ritira)+'</div>':'')+'<div style="color:#9a3412;font-size:9.5px">⟶ '+esc(gdDisplayVal||'—')+'</div></div>');
+      v2Html='<td class="c-sep"></td>'
+        +'<td class="c-po v2c" style="'+v2bg+'">'+(isAdmin?'<select class="cs" data-fld="v2.porto" '+d+'><option value=""></option>'+PK.map(p=>'<option value="'+p+'"'+(v2.porto===p?' selected':'')+'>'+p+'</option>').join('')+'</select>':'<span>'+(v2.porto||'')+'</span>')+'</td>'
+        +'<td class="c-ore v2c" style="'+v2bg+'">'+(isAdmin?'<input class="ci" type="time" value="'+esc(v2.ora||'')+'" data-fld="v2.ora" '+d+'>':'<span>'+(v2.ora||'')+'</span>')+'</td>'
+        +'<td class="c-ie v2c" style="'+v2bg+'">'+(isAdmin?'<select class="cs" data-fld="v2.ie" '+d+'><option value=""></option><option value="I"'+(v2.ie==='I'?' selected':'')+'>I</option><option value="E"'+(v2.ie==='E'?' selected':'')+'>E</option></select>':'<span class="'+(v2.ie?'ie-'+v2.ie:'')+'">'+esc(v2.ie||'')+'</span>')+'</td>'
+        +'<td class="c-cnt v2c" style="'+v2bg+'">'+(isAdmin?'<select class="cs" data-fld="v2.container" '+d+'><option value=""></option>'+CNT_TYPES.map(t=>'<option'+(v2.container===t?' selected':'')+'>'+t+'</option>').join('')+'</select>':'<span>'+esc(v2.container||'')+'</span>')+'</td>'
+        +'<td class="c-vg v2c" style="'+v2bg+'" colspan="2">'+v2DestCell+'</td>'
+        +'<td class="c-cp v2c" style="'+v2bg+'">'+(isAdmin?'<select class="cs" data-fld="v2.comp" '+d+'><option value=""></option>'+(S.data.compagnie||[]).map(co=>'<option value="'+co.id+'"'+(v2.comp===co.id?' selected':'')+'>'+esc(co.codice)+'</option>').join('')+'</select>':'<span style="font-size:11px;font-weight:600">'+esc(getCC(v2.comp))+'</span>')+'</td>'
+        +'<td class="c-fl v2c" style="text-align:center;'+v2bg+'"><input type="checkbox" class="ck" '+(v2.lv?'checked':'')+' data-fld="v2.lv" '+d+' '+(isAdmin?'':'disabled')+'></td>';
+    }else{
+      // V2 empty: show "ricarica domani" as before
+      v2Html=`<td class="c-sep v2c" style="${v2bg}"></td>
+      <td colspan="8" class="riut-gd v2c" style="padding:3px 10px;vertical-align:middle;${v2bg}">
+        <div style="display:flex;align-items:center;gap:6px;color:#9a3412;font-size:11.5px;white-space:nowrap">
+          <span style="font-size:15px;font-weight:700">⟶</span>
+          <span>Ricarica domani a:</span>
+          ${isAdmin?`<input class="ci" value="${esc(gdDisplayVal)}" data-fld="riut_dest" ${d} placeholder="località" style="max-width:140px;font-weight:700;color:${gdConfirmed?'#16a34a':'#9a3412'}">`:`<strong style="color:${gdConfirmed?'#16a34a':'#9a3412'}">${esc(gdDisplayVal||'—')}</strong>`}
+          ${gdConfirmed?`<span style="color:#16a34a;font-size:10px">✓ confermato</span>`:''}
+        </div>
+      </td>`;
+    }
   }else{
     v2Html=`<td class="c-sep"></td>
     <td class="c-po v2c" style="${v2bg}">${isAdmin?`<select class="cs" data-fld="v2.porto" ${d}>${pO2}</select>`:`<span>${v2.porto||''}</span>`}</td>
@@ -527,8 +609,8 @@ function renderGRow(a,idx,total,isAdmin,date){
       ${parz==='solo_am'?`<span class="parz-badge">assente mattina</span>`:parz==='solo_pm'?`<span class="parz-badge">assente pomeriggio</span>`:''}
       ${inRevision?`<span style="display:inline-block;background:#fef3c7;color:#92400e;font-size:9.5px;font-weight:700;padding:1px 4px;border-radius:3px;margin-top:1px">🔧 motrice in revisione</span>`:''}
     </td>
-    <td class="c-tg v1c" style="${v1bg}">${isAdmin?`<input class="ci" value="${esc(r.motrice||'')}" data-fld="motrice" ${d} placeholder="targa" style="font-family:monospace;font-weight:700;background:#fef9c3;color:#713f12;text-transform:uppercase">`:`<span class="tg-m">${esc(r.motrice||'—')}</span>`}</td>
-    <td class="c-tg v1c" style="${v1bg}">${isAdmin?`<input class="ci" value="${esc(r.rimorchio||'')}" data-fld="rimorchio" ${d} placeholder="targa" style="font-family:monospace;font-weight:700;background:#fce7f3;color:#831843;text-transform:uppercase">`:`<span class="tg-r">${esc(r.rimorchio||'—')}</span>`}</td>
+    <td class="c-tg v1c" style="${v1bg}">${isAdmin?`<input class="ci" value="${esc(r.motrice||'')}" data-fld="motrice" ${d} placeholder="targa" style="font-family:monospace;font-weight:700;background:#fef9c3;color:#713f12;text-transform:uppercase">`:`<span class="tg-m">${esc(r.motrice||'—')}</span>`}${(()=>{const _m=(S.data.motrici||[]).find(m=>m.targa===r.motrice);return _m&&isIndisp('motrice',_m.id,date)?`<span title="${getIndispMotivo('motrice',_m.id,date)}" style="color:#dc2626;font-size:10px;cursor:help">🔴</span>`:'';})()}</td>
+    <td class="c-tg v1c" style="${v1bg}">${isAdmin?`<input class="ci" value="${esc(r.rimorchio||'')}" data-fld="rimorchio" ${d} placeholder="targa" style="font-family:monospace;font-weight:700;background:#fce7f3;color:#831843;text-transform:uppercase">`:`<span class="tg-r">${esc(r.rimorchio||'—')}</span>`}${(()=>{const _r=(S.data.rimorchi||[]).find(r2=>r2.targa===r.rimorchio);return _r&&isIndisp('rimorchio',_r.id,date)?`<span title="${getIndispMotivo('rimorchio',_r.id,date)}" style="color:#dc2626;font-size:10px;cursor:help">🔴</span>`:'';})()}</td>
     <td class="c-po v1c" style="${v1bg}">${isAdmin?`<select class="cs" data-fld="v1.porto" ${d}>${pO}</select>`:`<span>${v1.porto||''}</span>`}</td>
     <td class="c-ore v1c" style="${v1bg}">${isAdmin?`<input class="ci" type="time" value="${esc(v1.ora||'')}" data-fld="v1.ora" ${d}>`:`<span>${v1.ora||'—'}</span>`}</td>
     <td class="c-ie v1c" style="${v1bg}">${isAdmin?`<select class="cs" data-fld="v1.ie" ${d}><option value=""></option><option value="I"${v1.ie==='I'?' selected':''}>I</option><option value="E"${v1.ie==='E'?' selected':''}>E</option></select>`:`<span class="${v1.ie?'ie-'+v1.ie:''}">${v1.ie||''}</span>`}</td>
@@ -582,7 +664,11 @@ function updateGiornCell(date,aid,fld,val){
     if(val==='SD'){
       row.v2.ie='E';row.v2.container=row.v1.container||'';
       row.v2.comp=row.v1.comp||'';row.v2.porto=row.v1.porto||autista.porto||'LI';
-      row.v1.lv=true;
+      // DO NOT auto-set lv — user controls yellow manually
+    }else{
+      row.v1.lv=false;
+      // Clear V2 auto-filled fields when SD removed
+      row.v2={porto:'',ora:'',ie:'',container:'',dest:'',note:'',comp:'',lv:false,ritira:''};
     }
     S.data=data;
     refreshGiorn();
@@ -799,6 +885,7 @@ function renderMotrici(){
           <td><div style="display:flex;gap:5px">
             ${canEdit('motrici')?`<button class="btn bg bxs" data-act="editMotrice" data-id="${m.id}">✏️</button>`:''}
             ${S.user.role==='admin'?`<button class="btn bd bxs" data-act="delMotrice" data-id="${m.id}">🗑</button>`:''}
+            ${canEdit('motrici')?`<button class="btn bp bxs" onclick="event.stopPropagation();showIndispModal('motrice','${m.id}')">📅</button>`:''}
           </div></td>
         </tr>`;
       }).join('')}
@@ -832,6 +919,7 @@ function renderRimorchi(){
           <td><div style="display:flex;gap:5px">
             ${canEdit('rimorchi')?`<button class="btn bg bxs" data-act="editRimorchio" data-id="${r.id}">✏️</button>`:''}
             ${S.user.role==='admin'?`<button class="btn bd bxs" data-act="delRimorchio" data-id="${r.id}">🗑</button>`:''}
+            ${canEdit('rimorchi')?`<button class="btn bp bxs" onclick="event.stopPropagation();showIndispModal('rimorchio','${r.id}')">📅</button>`:''}
           </div></td>
         </tr>`;
       }).join('')}
@@ -1029,7 +1117,6 @@ function renderLogin(){
     <div class="fg"><label class="fl">Password</label><input id="l-pass" type="password" placeholder="••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
     <div id="login-err" class="err-b" style="display:none"></div>
     <button class="btn ba" style="width:100%;justify-content:center;margin-top:4px" onclick="doLogin()">✓ Accedi</button>
-    <button class="btn bg" style="width:100%;justify-content:center;margin-top:7px;font-size:11.5px" onclick="goReset()">Reimposta configurazione</button>
   </div></div>`;
 }
 
@@ -1131,12 +1218,15 @@ function buildModal(){
           <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px"><input id="p-motrici" type="checkbox" ${(d.permissions||{}).motrici?'checked':''} style="width:15px;height:15px;accent-color:#f59e0b"> Motrici</label>
           <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px"><input id="p-rimorchi" type="checkbox" ${(d.permissions||{}).rimorchi?'checked':''} style="width:15px;height:15px;accent-color:#f59e0b"> Rimorchi</label>
           <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px"><input id="p-compagnie" type="checkbox" ${(d.permissions||{}).compagnie?'checked':''} style="width:15px;height:15px;accent-color:#f59e0b"> Compagnie</label>
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px"><input id="p-riutilizzi" type="checkbox" ${(d.permissions||{}).riutilizzi?'checked':''} style="width:15px;height:15px;accent-color:#f59e0b"> Riutilizzi</label>
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px"><input id="p-storico" type="checkbox" ${(d.permissions||{}).storico?'checked':''} style="width:15px;height:15px;accent-color:#f59e0b"> Storico</label>
         </div>
       </div>
     `);
   }
   if(t==='excel-export')return buildModal_excelExport();
   if(t==='archive-year'||t==='archive-year-v2')return buildModal_archiveYearV2();
+  if(t==='indisponibile')return buildModal_indisponibile();
   if(t==='view-archive')return buildModal_viewArchive();
   if(t==='user-pwd'){
     return modal('Cambia la tua password',`
@@ -1250,7 +1340,7 @@ function saveUser(existingId){
   if(!nome||!username||!password){alert('Tutti i campi sono obbligatori');return;}
   const role=g('f-role')||'reader';
   let permissions={};
-  if(role==='utente'){permissions={giornaliero:!!($id('p-giorn')||{}).checked,autisti:!!($id('p-autisti')||{}).checked,assenze:!!($id('p-assenze')||{}).checked,motrici:!!($id('p-motrici')||{}).checked,rimorchi:!!($id('p-rimorchi')||{}).checked,compagnie:!!($id('p-compagnie')||{}).checked};}
+  if(role==='utente'){permissions={giornaliero:!!($id('p-giorn')||{}).checked,autisti:!!($id('p-autisti')||{}).checked,assenze:!!($id('p-assenze')||{}).checked,motrici:!!($id('p-motrici')||{}).checked,rimorchi:!!($id('p-rimorchi')||{}).checked,compagnie:!!($id('p-compagnie')||{}).checked,riutilizzi:!!($id('p-riutilizzi')||{}).checked,storico:!!($id('p-storico')||{}).checked};}
   const item={id:existingId||uid(),nome,username,password,role,permissions};
   const data=S.data;
   if(existingId)data.users=data.users.map(x=>x.id===existingId?item:x);
@@ -1731,6 +1821,618 @@ function buildModal_archiveYearV2(){
   </div></div>`;
 }
 // (archivio anni: vedi sopra)
+
+// ══════════ RIUTILIZZI TAB ══════════
+const CNT_MAP={'40HC':'40 HC','40HQ':'40 HC','40GP':'40 BX','40BX':'40 BX','20GP':'20 BX','20BX':'20 BX',
+  '20HC':'20 HC','45HC':'45 HC','40OT':'40 OT','20OT':'20 OT','40FR':'40 FR','20FR':'20 FR',
+  '40RF':'40 RF','20RF':'20 RF','40HB':'40 HC'};
+const PORTO_MAP={'spezia':'SP','la spezia':'SP','livorn':'LI','genov':'GE','savona':'SV'};
+
+function mapPorto(str){
+  const s=(str||'').toLowerCase();
+  for(const[k,v] of Object.entries(PORTO_MAP)){if(s.includes(k))return v;}
+  return 'LI';
+}
+function mapCnt(str){
+  const k=(str||'').replace(/\s/g,'').toUpperCase();
+  return CNT_MAP[k]||str;
+}
+function findComp(carrier){
+  const s=(carrier||'').toLowerCase().trim();if(!s)return null;
+  return (S.data.compagnie||[]).find(c=>{
+    const codeL=c.codice.toLowerCase();
+    const words=c.nome.toLowerCase().replace(/-/g,' ').split(/\s+/);
+    return s===codeL||s.includes(codeL)||codeL.includes(s)||
+      words.some(w=>w.length>2&&(s===w||s.startsWith(w)||w.startsWith(s)));
+  });
+}
+function getCompCodice(compId){return getCC(compId);}
+function parseViaggio(line){
+  // Remove emoji and IMPORT/EXPORT prefix
+  const clean=line.replace(/^[\u{1F4E5}\u{1F4E4}📥📤]\s*(IMPORT|EXPORT)?\s*[|]?\s*/ui,'');
+  const parts=clean.split('|').map(p=>p.trim());
+  if(parts.length<5)return null;
+  const carrier=parts[0];
+  const cntRaw=parts[1];
+  // parts[2] = container number (skip)
+  const dest=parts[3].replace(/\s+\d{5,}$/,'').trim();
+  const dtStr=parts[4];
+  const portoStr=parts[5]||'';
+  // Parse date: 27/05/26, 08:30 or 27/05/2026, 08:30
+  const dtM=dtStr.match(/(\d{2})\/(\d{2})\/(\d{2,4})[,\s]+(\d{2}:\d{2})/);
+  let date=null,ora='';
+  if(dtM){
+    const y=dtM[3].length===2?'20'+dtM[3]:dtM[3];
+    date=y+'-'+dtM[2]+'-'+dtM[1];
+    ora=dtM[4];
+  }
+  const comp=findComp(carrier);
+  return{porto:mapPorto(portoStr),ora,ie:'',container:mapCnt(cntRaw),dest,comp:comp?comp.id:'',date};
+}
+function parseRiutilizziText(text){
+  const lines=text.split('\n').map(l=>l.trim()).filter(l=>l);
+  const results=[];
+  for(let i=0;i<lines.length;i++){
+    const l=lines[i];
+    if(l.includes('IMPORT')||(l.startsWith('📥'))||(l.startsWith('\u{1F4E5}'))){
+      const importLine=l;
+      let exportLine=null;
+      for(let j=i+1;j<Math.min(i+4,lines.length);j++){
+        if(lines[j].includes('EXPORT')||(lines[j].startsWith('📤'))||(lines[j].startsWith('\u{1F4E4}'))){
+          exportLine=lines[j];i=j;break;
+        }
+      }
+      if(importLine&&exportLine){
+        const v1d=parseViaggio(importLine);
+        const v2d=parseViaggio(exportLine);
+        if(v1d&&v2d){
+          const sameDay=(!v1d.date||!v2d.date||v1d.date===v2d.date);
+          const riut=sameDay?'SD':'GD';
+          const importAfternoon=!!(v1d.ora&&v1d.ora>='12:00');
+          results.push({
+            id:uid(),imported_at:new Date().toISOString(),
+            date:v1d.date||v2d.date||td(),assigned_autista:'',
+            riut,riut_dest:!sameDay?(v2d.dest||''):'',
+            importAfternoon,
+            v1:{porto:v1d.porto,ora:v1d.ora,ie:'I',container:v1d.container,dest:v1d.dest,comp:v1d.comp,note:''},
+            v2:{porto:v2d.porto,ora:v2d.ora,ie:'E',container:v2d.container,dest:v2d.dest,comp:v2d.comp,note:''}
+          });
+        }
+      }
+    }
+  }
+  return results;
+}
+
+function importRiutilizzi(){
+  const txt=($id('riut-paste')||{}).value||'';
+  if(!txt.trim()){alert('Incolla il testo da Teams prima di importare.');return;}
+  const parsed=parseRiutilizziText(txt);
+  if(!parsed.length){alert('Nessun riutilizzo riconosciuto. Controlla il formato del testo.');return;}
+  const data=S.data;
+  if(!data.riutilizzi_pending)data.riutilizzi_pending=[];
+  data.riutilizzi_pending=[...data.riutilizzi_pending,...parsed];
+  S.data=data;scheduleSave(data);
+  if($id('riut-paste'))$id('riut-paste').value='';
+  const m=document.querySelector('.main');if(m)m.innerHTML=renderRiutilizzi();
+  alert('Importati '+parsed.length+' riutilizzi.');
+}
+
+function updateRiutilizzo(rid,fld,val){
+  const data=S.data;
+  const r=(data.riutilizzi_pending||[]).find(x=>x.id===rid);
+  if(!r)return;
+  if(fld.startsWith('v1.'))r.v1[fld.slice(3)]=val;
+  else if(fld.startsWith('v2.'))r.v2[fld.slice(3)]=val;
+  else r[fld]=val;
+  S.data=data;scheduleSave(data);
+}
+
+function deleteRiutilizzo(rid){
+  if(!confirm('Eliminare questo riutilizzo?'))return;
+  const data=S.data;
+  data.riutilizzi_pending=(data.riutilizzi_pending||[]).filter(x=>x.id!==rid);
+  S.data=data;scheduleSave(data);
+  const m=document.querySelector('.main');if(!m)return;
+  if(S.tab==='riutilizzi')m.innerHTML=renderRiutilizzi();
+  else refreshGiorn();
+}
+
+function abbina(rid){
+  try{
+    const data=S.data;
+    // 1. Find riutilizzo
+    const r=(data.riutilizzi_pending||[]).find(x=>x.id===rid);
+    if(!r){alert('Riutilizzo non trovato.');return;}
+
+    // 2. Get selected autista (optional)
+    const aidEl=document.getElementById('aut-'+rid)||document.getElementById('giorn-aut-'+rid);
+    const aid=aidEl?aidEl.value:'';
+    if(!aid){
+      // No autista: approve for giornaliero without assigning
+      const r2=(data.riutilizzi_pending||[]).find(x=>x.id===rid);
+      if(r2){r2.giornaliero_approved=true;S.data=data;scheduleSave(data);}
+      S.tab='giornaliero';S.date=(r2&&r2.date)||td();render();return;
+    }
+    const autista=(data.autisti||[]).find(a=>a.id===aid);
+    if(!autista){alert('Autista non trovato in anagrafica.');return;}
+
+    // 3. Resolve date and type
+    const date=r.date||td();
+    const riutType=r.riut||'SD';
+    const isAfternoon=!!(r.importAfternoon);
+    const isGD=(riutType==='GD');
+    const nextDate=isGD?offDate(date,1):null;
+
+    // 4. Build empty slot object
+    const emptySlot={porto:'',ora:'',ie:'',container:'',dest:'',note:'',comp:'',lv:false,ritira:''};
+
+    // 5. Build import and export trip objects
+    const importTrip={porto:r.v1.porto||autista.porto||'LI',ora:r.v1.ora||'',ie:r.v1.ie||'I',
+      container:r.v1.container||'',dest:r.v1.dest||'',note:r.v1.note||'',
+      comp:r.v1.comp||'',lv:false,ritira:''};
+    const exportTrip={porto:r.v2.porto||'',ora:r.v2.ora||'',ie:r.v2.ie||'E',
+      container:r.v2.container||'',dest:r.v2.dest||'',note:r.v2.note||'',
+      comp:r.v2.comp||'',lv:false,ritira:''};
+
+    // 6. Determine which slot import goes into
+    const importSlot=isAfternoon?'v2':'v1';
+    const rowRiut=isGD?'GD':(isAfternoon?'':riutType);
+    const rowRiutDest=isGD?(r.riut_dest||exportTrip.dest||''):'';
+    let rowV1=isAfternoon?{...emptySlot,porto:autista.porto||'LI'}:importTrip;
+    let rowV2=isAfternoon?importTrip:(isGD?{...emptySlot}:exportTrip);
+
+    // 7. Conflict checks - helper functions
+    const motriceTarga=autista.last_motrice||getMTarga(autista)||'';
+    const checkSlot=(d,slot)=>{
+      const row=((data.giornaliero||{})[d]||{rows:{}}).rows[aid]||{};
+      const v=row[slot]||{};
+      // Require meaningful data: destination OR container must be set
+      return !!(v.dest||v.container);
+    };
+    const checkAssenza=(d)=>(data.assenze||[]).some(a=>
+      a.autista_id===aid&&a.data_inizio<=d&&a.data_fine>=d&&(!a.turno||a.turno==='tutto'));
+    const checkRevisione=(d)=>{
+      if(!motriceTarga)return false;
+      const m=(data.motrici||[]).find(x=>x.targa===motriceTarga);
+      const inRev=!!(m&&m.rev_prog_dal&&m.rev_prog_al&&m.rev_prog_dal<=d&&m.rev_prog_al>=d);
+      const inIndisp=m&&isIndisp('motrice',m.id,d);
+      return inRev||inIndisp;
+    };
+
+    const blocks=[];   // hard blocks (assenza, revisione)
+    const warns=[];    // soft warnings (slot occupato, chiede conferma)
+    const nome=autista.cognome+' '+autista.nome;
+
+    // Slot conflicts → confirm (overwrite)
+    if(checkSlot(date,importSlot))
+      warns.push(nome+' ha gia un viaggio in '+importSlot.toUpperCase()+' il '+fd(date));
+    if(isGD&&nextDate&&checkSlot(nextDate,'v1'))
+      warns.push(nome+' ha gia un viaggio in V1 il '+fd(nextDate)+' (giorno del ritiro)');
+
+    // Assenze + revisioni → hard block
+    if(checkAssenza(date))
+      blocks.push(nome+' e assente il '+fd(date));
+    if(checkRevisione(date))
+      blocks.push('Motrice '+motriceTarga+' in revisione il '+fd(date));
+    if(isGD&&nextDate){
+      if(checkAssenza(nextDate))
+        blocks.push(nome+' e assente il '+fd(nextDate)+' (giorno del ritiro)');
+      if(checkRevisione(nextDate))
+        blocks.push('Motrice '+motriceTarga+' in revisione il '+fd(nextDate)+' (giorno del ritiro)');
+    }
+
+    if(blocks.length){
+      alert('Abbinamento bloccato:\n- '+blocks.join('\n- ')+'\n\nIl riutilizzo rimane in sospeso.');
+      return;
+    }
+    if(warns.length){
+      if(!confirm('Attenzione:\n- '+warns.join('\n- ')+'\n\nVuoi sovrascrivere e procedere con l\'abbinamento?'))return;
+    }
+
+    // 8. Insert import row on current date
+    if(!data.giornaliero)data.giornaliero={};
+    if(!data.giornaliero[date])data.giornaliero[date]={rows:{},porto_overrides:{},order:[]};
+    const dd=data.giornaliero[date];
+    const targa=motriceTarga;
+    const rimorchioTarga=autista.last_rimorchio||getRTarga(autista)||'';
+    if(!dd.rows[aid]){
+      dd.rows[aid]={motrice:targa,rimorchio:rimorchioTarga,riut:rowRiut,riut_dest:rowRiutDest,mattino:false,v1:rowV1,v2:rowV2};
+    }else{
+      const ex=dd.rows[aid];
+      ex[importSlot]=isAfternoon?importTrip:(isGD?importTrip:importTrip);
+      if(!isAfternoon&&!isGD)ex.v2=exportTrip;
+      ex.riut=rowRiut;ex.riut_dest=rowRiutDest;
+    }
+    if(importTrip.porto&&importTrip.porto!==autista.porto)dd.porto_overrides[aid]=importTrip.porto;
+
+    // 9. For GD: insert export row on next day
+    if(isGD&&nextDate){
+      if(!data.giornaliero[nextDate])data.giornaliero[nextDate]={rows:{},porto_overrides:{},order:[]};
+      const ndd=data.giornaliero[nextDate];
+      if(!ndd.rows[aid]){
+        ndd.rows[aid]={motrice:targa,rimorchio:rimorchioTarga,riut:'',riut_dest:'',mattino:false,v1:exportTrip,v2:{...emptySlot}};
+      }else{
+        ndd.rows[aid].v1=exportTrip;
+      }
+      if(exportTrip.porto&&exportTrip.porto!==autista.porto)ndd.porto_overrides[aid]=exportTrip.porto;
+    }
+
+    // 10. Remove from pending and navigate
+    data.riutilizzi_pending=(data.riutilizzi_pending||[]).filter(x=>x.id!==rid);
+    S.data=data;
+    scheduleSave(data);
+    S.tab='giornaliero';S.date=date;
+    render();
+    setTimeout(()=>alert('Abbinato: '+nome+' — '+fd(date)+(isGD?' + '+fd(nextDate):'')),150);
+  }catch(err){
+    alert('Errore abbinamento: '+err.message);
+    console.error('abbina error',err);
+  }
+}
+
+function renderRiutilizzi(){
+  if(!S.data.riutilizzi_pending)S.data.riutilizzi_pending=[];
+  const pending=(S.data.riutilizzi_pending||[]).filter(r=>!r.giornaliero_approved).sort((a,b)=>a.date.localeCompare(b.date));
+  const autOpts=(S.data.autisti||[]).filter(a=>a.attivo!==false)
+    .map(a=>`<option value="${a.id}">${esc(a.soprannome||a.cognome+' '+a.nome)}</option>`).join('');
+  const compOpts=(S.data.compagnie||[]).map(c=>`<option value="${c.id}">${esc(c.codice)}</option>`).join('');
+  const cntOpts=CNT_TYPES.map(t=>`<option>${t}</option>`).join('');
+  const pOpts=PK.map(p=>`<option value="${p}">${p} - ${PORTI[p]}</option>`).join('');
+  // Group by date
+  const byDate={};
+  pending.forEach(r=>{if(!byDate[r.date])byDate[r.date]=[];byDate[r.date].push(r);});
+
+  let html=`<div class="ph"><span class="pt">🔄 Riutilizzi</span></div>
+  <div class="card card-p" style="margin-bottom:12px">
+    <div class="sect" style="margin-top:0">Incolla il testo da Teams</div>
+    <textarea id="riut-paste" rows="5" placeholder="📥 IMPORT | Hapag | 40HC | ... &#10;↕ Riutilizza con&#10;📤 EXPORT | Hapag | 40HC | ..." style="width:100%;padding:8px;font-size:12px;font-family:monospace;border:1px solid #e2e8f0;border-radius:5px;resize:vertical"></textarea>
+    <button class="btn ba" style="margin-top:8px" onclick="importRiutilizzi()">📥 Importa riutilizzi</button>
+  </div>`;
+
+  if(!Object.keys(byDate).length){
+    html+=`<div class="card card-p" style="text-align:center;color:#94a3b8;padding:40px">Nessun riutilizzo in attesa. Incolla il testo sopra per importarne.</div>`;
+    return html;
+  }
+
+  Object.entries(byDate).forEach(([date,list])=>{
+    const dn=getDayName(date);
+    html+=`<div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin:12px 0 6px">${dn} ${fd(date)}</div>`;
+    list.forEach(r=>{
+      const v1=r.v1||{},v2=r.v2||{};
+      const mkSel=(fld,val,opts,onch)=>`<select class="cs" style="border:1px solid #e2e8f0;border-radius:4px;padding:3px 4px;font-size:12px;background:#fff" onchange="${onch}"><option value="">${val||'—'}</option>${opts}</select>`;
+      const mkIn=(fld,val,ph,onch)=>`<input style="border:1px solid #e2e8f0;border-radius:4px;padding:3px 6px;font-size:12px;width:100%" value="${esc(val||'')}" placeholder="${ph}" onchange="${onch}">`;
+      html+=`<div class="card" style="margin-bottom:10px;overflow:visible">
+        <div style="padding:10px 14px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            <div>
+              <div style="font-size:10px;font-weight:700;color:#1d4ed8;text-transform:uppercase;margin-bottom:6px">📥 Import V1</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:5px">
+                <div><label class="fl">Porto</label><select class="cs" style="border:1px solid #e2e8f0;border-radius:4px;padding:3px;font-size:12px;width:100%;background:#fff" onchange="updateRiutilizzo('${r.id}','v1.porto',this.value)">${PK.map(p=>`<option value="${p}"${v1.porto===p?' selected':''}>${p}</option>`).join('')}</select></div>
+                <div><label class="fl">Ora</label><input type="time" style="border:1px solid #e2e8f0;border-radius:4px;padding:3px 5px;font-size:12px;width:100%" value="${esc(v1.ora||'')}" onchange="updateRiutilizzo('${r.id}','v1.ora',this.value)"></div>
+                <div><label class="fl">Cntr</label><select class="cs" style="border:1px solid #e2e8f0;border-radius:4px;padding:3px;font-size:12px;width:100%;background:#fff" onchange="updateRiutilizzo('${r.id}','v1.container',this.value)"><option value="">${esc(v1.container||'')}</option>${CNT_TYPES.map(t=>`<option${v1.container===t?' selected':''}>${t}</option>`).join('')}</select></div>
+              </div>
+              <div style="margin-bottom:5px"><label class="fl">Destinazione</label><input style="border:1px solid #e2e8f0;border-radius:4px;padding:3px 6px;font-size:12px;width:100%" value="${esc(v1.dest||'')}" placeholder="destinazione" onchange="updateRiutilizzo('${r.id}','v1.dest',this.value)"></div>
+              <div><label class="fl">Carrier</label><select class="cs" style="border:1px solid #e2e8f0;border-radius:4px;padding:3px;font-size:12px;width:100%;background:#fff" onchange="updateRiutilizzo('${r.id}','v1.comp',this.value)"><option value="">${getCompCodice(v1.comp)||'—'}</option>${compOpts}</select></div>
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:700;color:#9a3412;text-transform:uppercase;margin-bottom:6px">📤 Export V2</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:5px">
+                <div><label class="fl">Porto</label><select class="cs" style="border:1px solid #e2e8f0;border-radius:4px;padding:3px;font-size:12px;width:100%;background:#fff" onchange="updateRiutilizzo('${r.id}','v2.porto',this.value)">${PK.map(p=>`<option value="${p}"${v2.porto===p?' selected':''}>${p}</option>`).join('')}</select></div>
+                <div><label class="fl">Ora</label><input type="time" style="border:1px solid #e2e8f0;border-radius:4px;padding:3px 5px;font-size:12px;width:100%" value="${esc(v2.ora||'')}" onchange="updateRiutilizzo('${r.id}','v2.ora',this.value)"></div>
+                <div><label class="fl">Cntr</label><select class="cs" style="border:1px solid #e2e8f0;border-radius:4px;padding:3px;font-size:12px;width:100%;background:#fff" onchange="updateRiutilizzo('${r.id}','v2.container',this.value)"><option value="">${esc(v2.container||'')}</option>${CNT_TYPES.map(t=>`<option${v2.container===t?' selected':''}>${t}</option>`).join('')}</select></div>
+              </div>
+              <div style="margin-bottom:5px"><label class="fl">Destinazione</label><input style="border:1px solid #e2e8f0;border-radius:4px;padding:3px 6px;font-size:12px;width:100%" value="${esc(v2.dest||'')}" placeholder="destinazione" onchange="updateRiutilizzo('${r.id}','v2.dest',this.value)"></div>
+              <div><label class="fl">Carrier</label><select class="cs" style="border:1px solid #e2e8f0;border-radius:4px;padding:3px;font-size:12px;width:100%;background:#fff" onchange="updateRiutilizzo('${r.id}','v2.comp',this.value)"><option value="">${getCompCodice(v2.comp)||'—'}</option>${compOpts}</select></div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid #f1f5f9;flex-wrap:wrap">
+            <label class="fl" style="margin:0;white-space:nowrap">Autista:</label>
+            <select id="aut-${r.id}" style="flex:1;min-width:160px;border:1px solid #e2e8f0;border-radius:5px;padding:5px 8px;font-size:12.5px;background:#fff">
+              <option value="">— Seleziona autista —</option>${autOpts}
+            </select>
+            <input type="date" style="border:1px solid #e2e8f0;border-radius:5px;padding:5px 8px;font-size:12px" value="${esc(r.date||td())}" onchange="updateRiutilizzo('${r.id}','date',this.value);this.closest('.card').querySelector('.riut-date').textContent=this.value" title="Data abbinamento">
+            <button class="btn ba" onclick="abbina('${r.id}')">📌 Abbina al giornaliero</button>
+            <button class="btn bd bxs" onclick="deleteRiutilizzo('${r.id}')">🗑</button>
+          </div>
+        </div>
+      </div>`;
+    });
+  });
+    // ── Tutti i pending: riepilogo snello ───────────────────────────────────
+  const allPending=(S.data.riutilizzi_pending||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
+  if(allPending.length){
+    html+='<div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin:16px 0 6px">📋 Tutti i riutilizzi in sospeso ('+allPending.length+')</div>'
+      +'<div class="card" style="overflow:hidden"><table class="std">'
+      +'<thead><tr><th>Stato</th><th>Data</th><th>📥 Import</th><th>📤 Export</th><th></th></tr></thead><tbody>'
+      +allPending.map(r=>{
+        const stato=r.giornaliero_approved
+          ?'<span style="background:#dcfce7;color:#166534;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600">In giornaliero</span>'
+          :'<span style="background:#fff7ed;color:#9a3412;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600">Da assegnare</span>';
+        return '<tr>'
+          +'<td>'+stato+'</td>'
+          +'<td style="white-space:nowrap;font-weight:700">'+getDayName(r.date)+' '+fd(r.date)+'</td>'
+          +'<td style="font-size:11.5px">'+esc((r.v1||{}).porto||'')+' '+esc((r.v1||{}).ora||'')+' → '+esc((r.v1||{}).dest||'')+'</td>'
+          +'<td style="font-size:11.5px">'+(r.riut==='GD'?'<span style="color:#f59e0b;font-weight:700">GD</span> '+fd(offDate(r.date,1))+' ':'')+esc((r.v2||{}).porto||'')+' '+esc((r.v2||{}).ora||'')+' → '+esc((r.v2||{}).dest||'')+'</td>'
+          +'<td><div style="display:flex;gap:4px">'
+          +'<button class="btn ba bxs" data-ev="gotoday" data-date="'+r.date+'">📅 Vai</button>'
+          +'<button class="btn bd bxs" data-ev="delriut" data-id="'+r.id+'">🗑</button>'
+          +'</div></td>'
+          +'</tr>';
+      }).join('')
+      +'</tbody></table></div>';
+  }
+
+  return html;
+}
+
+
+// ══════════ STORICO TAB ══════════
+function renderStorico(){
+  // Build datalists from current data
+  const autNames=(S.data.autisti||[]).filter(a=>a.attivo!==false).flatMap(a=>[a.cognome+' '+a.nome,...(a.soprannome?[a.soprannome]:[])]);
+  const motTarghe=[...new Set((S.data.motrici||[]).map(m=>m.targa).filter(Boolean))];
+  const rimTarghe=[...new Set((S.data.rimorchi||[]).map(r=>r.targa).filter(Boolean))];
+  // Also collect from giornaliero rows
+  Object.values(S.data.giornaliero||{}).forEach(dd=>Object.values(dd.rows||{}).forEach(row=>{
+    if(row.motrice)motTarghe.push(row.motrice);
+    if(row.rimorchio)rimTarghe.push(row.rimorchio);
+  }));
+  const uniqMot=[...new Set(motTarghe)].sort();
+  const uniqRim=[...new Set(rimTarghe)].sort();
+  return `<datalist id="dl-aut">${autNames.map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
+  <datalist id="dl-mot">${uniqMot.map(t=>`<option value="${esc(t)}">`).join('')}</datalist>
+  <datalist id="dl-rim">${uniqRim.map(t=>`<option value="${esc(t)}">`).join('')}</datalist>
+  <div class="ph"><span class="pt">🔍 Storico Viaggi</span></div>
+  <div class="card" style="margin-bottom:12px;padding:16px 20px">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">
+      <div class="fg" style="margin:0">
+        <label class="fl" style="padding-left:2px">Autista</label>
+        <input id="st-aut" list="dl-aut" style="font-size:12.5px" onkeydown="if(event.key==='Enter')runStorico()">
+      </div>
+      <div class="fg" style="margin:0">
+        <label class="fl" style="padding-left:2px">Motrice (targa)</label>
+        <input id="st-mot" list="dl-mot" style="font-size:12.5px;text-transform:uppercase" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')runStorico()">
+      </div>
+      <div class="fg" style="margin:0">
+        <label class="fl" style="padding-left:2px">Rimorchio (targa)</label>
+        <input id="st-rim" list="dl-rim" style="font-size:12.5px;text-transform:uppercase" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')runStorico()">
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+      <div class="fg" style="margin:0"><label class="fl" style="padding-left:2px">Dal</label><input id="st-dal" type="date" value="${new Date().getFullYear()+'-01-01'}" style="font-size:12.5px"></div>
+      <div class="fg" style="margin:0"><label class="fl" style="padding-left:2px">Al</label><input id="st-al" type="date" value="${td()}" style="font-size:12.5px"></div>
+      <button class="btn ba" onclick="runStorico()">🔍 Cerca</button>
+      <button class="btn bg" onclick="exportStoricoExcel()">📊 Esporta Excel</button>
+    </div>
+  </div>
+  <div id="storico-results" style="margin-top:8px"><div style="text-align:center;color:#94a3b8;padding:30px;font-size:13px">Imposta i filtri e clicca Cerca</div></div>`;
+}
+
+window._storicoResults=[];
+
+async function runStorico(){
+  const qAut=(($id('st-aut')||{}).value||'').toLowerCase().trim();
+  const qMot=(($id('st-mot')||{}).value||'').toUpperCase().trim();
+  const qRim=(($id('st-rim')||{}).value||'').toUpperCase().trim();
+  const dal=($id('st-dal')||{}).value||'';
+  const al=($id('st-al')||{}).value||'';
+  if(!qAut&&!qMot&&!qRim){alert('Inserisci almeno un criterio di ricerca.');return;}
+  const el=$id('storico-results');
+  if(el)el.innerHTML='<div style="text-align:center;color:#64748b;padding:30px">🔍 Ricerca in corso...</div>';
+  const results=[];
+  // Search current year
+  searchInData(S.data,qAut,qMot,qRim,dal,al,results);
+  // Search archived years if needed
+  if(S.cfg&&S.cfg.mode==='gist'&&dal){
+    const dalYear=dal.slice(0,4);
+    const curYear=String(new Date().getFullYear());
+    if(dalYear<curYear){
+      const archived=await listGistArchives();
+      for(const yr of archived){
+        if(yr<dalYear)continue;
+        if(yr>=curYear)continue;
+        if(el)el.innerHTML='<div style="text-align:center;color:#64748b;padding:30px">🔍 Cercando archivio '+yr+'...</div>';
+        const arch=await loadArchiveYear(yr);
+        if(arch)searchInData(arch,qAut,qMot,qRim,dal,al,results);
+      }
+    }
+  }
+  results.sort((a,b)=>a.date.localeCompare(b.date));
+  window._storicoResults=results;
+  renderStoricoResults(results,el);
+}
+
+function searchInData(data,qAut,qMot,qRim,dal,al,results){
+  const autisti=data.autisti||[];
+  const giorn=data.giornaliero||{};
+  const motrici=data.motrici||[];
+  const rimorchi=data.rimorchi||[];
+  const compagnie=data.compagnie||S.data.compagnie||[];
+  Object.entries(giorn).forEach(([date,dd])=>{
+    if(dal&&date<dal)return;
+    if(al&&date>al)return;
+    Object.entries(dd.rows||{}).forEach(([aid,row])=>{
+      const aut=autisti.find(a=>a.id===aid);
+      if(!aut)return;
+      const nomeFull=(aut.cognome+' '+aut.nome).toLowerCase();
+      const nomeSop=(aut.soprannome||'').toLowerCase();
+      const mot=(row.motrice||'').toUpperCase();
+      const rim=(row.rimorchio||'').toUpperCase();
+      if(qAut&&!nomeFull.includes(qAut)&&!nomeSop.includes(qAut))return;
+      if(qMot&&!mot.includes(qMot))return;
+      if(qRim&&!rim.includes(qRim))return;
+      const getCompName=cid=>{const c=compagnie.find(x=>x.id===cid);return c?c.codice:''};
+      const v1=row.v1||{},v2=row.v2||{};
+      if(v1.ie||v1.container||v1.dest||v1.ora||v1.comp){
+        results.push({date,autista:aut.soprannome||aut.cognome+' '+aut.nome,
+          motrice:mot,rimorchio:rim,porto:v1.porto||'',ora:v1.ora||'',
+          ie:v1.ie||'',container:v1.container||'',dest:v1.dest||'',
+          note:v1.note||'',carrier:getCompName(v1.comp),viaggio:'V1'});
+      }
+      if(v2.ie||v2.container||v2.dest||v2.ora||v2.comp){
+        results.push({date,autista:aut.soprannome||aut.cognome+' '+aut.nome,
+          motrice:mot,rimorchio:rim,porto:v2.porto||'',ora:v2.ora||'',
+          ie:v2.ie||'',container:v2.container||'',dest:v2.dest||'',
+          note:v2.note||'',carrier:getCompName(v2.comp),viaggio:'V2'});
+      }
+    });
+  });
+}
+
+function renderStoricoResults(results,el){
+  if(!el)el=$id('storico-results');
+  if(!el)return;
+  if(!results.length){el.innerHTML='<div class="card card-p" style="text-align:center;color:#94a3b8;padding:30px">Nessun viaggio trovato con i criteri selezionati.</div>';return;}
+  // Stats
+  const destCount={};results.forEach(r=>{if(r.dest)destCount[r.dest]=(destCount[r.dest]||0)+1;});
+  const topDest=Object.entries(destCount).sort((a,b)=>b[1]-a[1]).slice(0,3);
+  let html=`<div style="display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+    <div class="sc" style="flex:1;min-width:120px"><div class="sc-l">Viaggi trovati</div><div class="sc-v">${results.length}</div></div>
+    ${topDest.map(([d,n])=>`<div class="sc" style="flex:1;min-width:120px"><div class="sc-l">Top dest.</div><div class="sc-v" style="font-size:13px">${esc(d)}</div><div style="font-size:11px;color:#94a3b8">${n} volte</div></div>`).join('')}
+  </div>
+  <div class="card"><table class="std">
+    <thead><tr><th>Data</th><th>Autista</th><th>Motrice</th><th>Rim.</th><th>Porto</th><th>Ora</th><th>I/E</th><th>Cntr</th><th>Destinazione</th><th>Note</th><th>Carrier</th><th>Vg.</th><th>RIUT</th></tr></thead>
+    <tbody>${results.map(r=>`<tr>
+      <td style="white-space:nowrap">${fd(r.date)}</td>
+      <td style="font-weight:600">${esc(r.autista)}</td>
+      <td><span class="tg-m">${esc(r.motrice)}</span></td>
+      <td><span class="tg-r">${esc(r.rimorchio)}</span></td>
+      <td>${esc(r.porto)}</td><td>${esc(r.ora)}</td>
+      <td><span class="${r.ie?'ie-'+r.ie:''}">${esc(r.ie)}</span></td>
+      <td>${esc(r.container)}</td>
+      <td>${esc(r.dest)}</td>
+      <td style="font-size:11px;color:#64748b">${esc(r.note)}</td>
+      <td style="font-weight:600">${esc(r.carrier)}</td>
+      <td style="font-size:11px;color:#94a3b8">${r.viaggio}</td>
+      <td>${r.riut==='SD'?'<span style="background:#fef9c3;color:#92400e;font-size:10px;font-weight:600;padding:1px 5px;border-radius:3px">↕ SD</span>':r.riut==='GD'?'<span style="background:#fff7ed;color:#9a3412;font-size:10px;font-weight:600;padding:1px 5px;border-radius:3px">→ GD</span>':''}</td>
+    </tr>`).join('')}
+    </tbody>
+  </table></div>`;
+  el.innerHTML=html;
+}
+
+function exportStoricoExcel(){
+  if(!window._storicoResults||!window._storicoResults.length){alert('Esegui prima una ricerca.');return;}
+  if(typeof XLSX==='undefined'){
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload=()=>doStoricoExport();
+    document.head.appendChild(s);return;
+  }
+  doStoricoExport();
+}
+function doStoricoExport(){
+  const wb=XLSX.utils.book_new();
+  const hdr=['Data','Giorno','Autista','Motrice','Rimorchio','Porto','Ora','I/E','Container','Destinazione','Note','Carrier','Viaggio'];
+  const rows=[hdr,...window._storicoResults.map(r=>[fd(r.date),getDayName(r.date),r.autista,r.motrice,r.rimorchio,r.porto,r.ora,r.ie,r.container,r.dest,r.note,r.carrier,r.viaggio])];
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:10},{wch:12},{wch:20},{wch:10},{wch:10},{wch:6},{wch:7},{wch:5},{wch:8},{wch:22},{wch:14},{wch:8},{wch:5}];
+  XLSX.utils.book_append_sheet(wb,ws,'Storico');
+  XLSX.writeFile(wb,'storico_'+td()+'.xlsx');
+}
+
+// ══════════ INDISPONIBILITÀ MEZZI ══════════
+const INDISP_MOTIVI=['Guasto','Riparazione','Revisione','Incidente','Altro'];
+
+function showIndispModal(tipo,mezzoId){
+  S.modal='indisponibile';
+  S.modalData={tipo,mezzoId,editId:null};
+  renderModal();
+}
+
+function buildModal_indisponibile(){
+  const d=S.modalData||{};
+  const tipo=d.tipo||'motrice';
+  const mezzoId=d.mezzoId||'';
+  const mezzi=tipo==='motrice'?(S.data.motrici||[]):(S.data.rimorchi||[]);
+  const mezzo=mezzi.find(m=>m.id===mezzoId)||{};
+  const label=tipo==='motrice'?'Motrice':'Rimorchio';
+  const list=(S.data.indisponibili||[]).filter(x=>x.tipo===tipo&&x.mezzo_id===mezzoId)
+    .sort((a,b)=>b.data_inizio.localeCompare(a.data_inizio));
+  const editId=d.editId||null;
+  const ed=editId?list.find(x=>x.id===editId):null;
+
+  const body=`
+    <div class="sect" style="margin-top:0">${editId?'Modifica periodo':'Nuovo periodo'}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="fg"><label class="fl">Data inizio</label><input id="fi-dal" type="date" value="${ed?ed.data_inizio:''}"></div>
+      <div class="fg"><label class="fl">Data fine</label><input id="fi-al" type="date" value="${ed?ed.data_fine:''}"></div>
+    </div>
+    <div class="fg"><label class="fl">Motivo</label>
+      <select id="fi-mot">${INDISP_MOTIVI.map(m=>`<option value="${m}"${ed&&ed.motivo===m?' selected':''}>${m}</option>`).join('')}</select>
+    </div>
+    <div class="fg"><label class="fl">Note</label>
+      <input id="fi-note" value="${esc(ed&&ed.note?ed.note:'')}" placeholder="note opzionali">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn ba" onclick="saveIndisponibile()">💾 Salva</button>
+      ${editId?`<button class="btn bd" onclick="deleteIndisponibile('${editId}')">🗑 Elimina</button>`:''}
+    </div>
+    ${list.length?`
+    <div class="sect" style="margin-top:14px">Periodi registrati</div>
+    <table class="std"><thead><tr><th>Dal</th><th>Al</th><th>Motivo</th><th>Note</th><th></th></tr></thead><tbody>
+    ${list.map(x=>`<tr>
+      <td style="white-space:nowrap">${fd(x.data_inizio)}</td>
+      <td style="white-space:nowrap">${fd(x.data_fine)}</td>
+      <td><span style="background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:3px;font-size:11px;font-weight:600">${esc(x.motivo)}</span></td>
+      <td style="font-size:11.5px;color:#64748b">${esc(x.note||'')}</td>
+      <td style="display:flex;gap:4px">
+        <button class="btn bg bxs" onclick="editIndisponibile('${x.id}')">✏️</button>
+        <button class="btn bd bxs" onclick="deleteIndisponibile('${x.id}')">🗑</button>
+      </td>
+    </tr>`).join('')}
+    </tbody></table>`:''}`;
+
+  return modal(`📅 Indisponibilità — ${label} ${esc(mezzo.targa||'')}`, body);
+}
+
+
+function saveIndisponibile(){
+  const d=S.modalData||{};
+  const dal=($id('fi-dal')||{}).value||'';
+  const al=($id('fi-al')||{}).value||'';
+  const mot=($id('fi-mot')||{}).value||INDISP_MOTIVI[0];
+  const note=($id('fi-note')||{}).value||'';
+  if(!dal||!al){alert('Inserisci data inizio e fine.');return;}
+  if(dal>al){alert('La data fine deve essere uguale o successiva alla data inizio.');return;}
+  const data=S.data;
+  if(!data.indisponibili)data.indisponibili=[];
+  const editId=d.editId;
+  if(editId){
+    const idx=data.indisponibili.findIndex(x=>x.id===editId);
+    if(idx>=0)data.indisponibili[idx]={...data.indisponibili[idx],data_inizio:dal,data_fine:al,motivo:mot,note};
+  }else{
+    data.indisponibili.push({id:uid(),tipo:d.tipo,mezzo_id:d.mezzoId,data_inizio:dal,data_fine:al,motivo:mot,note});
+  }
+  S.data=data;scheduleSave(data);
+  S.modalData={...d,editId:null};
+  renderModal();
+}
+
+function editIndisponibile(eid){
+  S.modalData={...S.modalData,editId:eid};renderModal();
+}
+
+function deleteIndisponibile(eid){
+  if(!confirm('Eliminare questo periodo?'))return;
+  const data=S.data;
+  data.indisponibili=(data.indisponibili||[]).filter(x=>x.id!==eid);
+  S.data=data;scheduleSave(data);
+  S.modalData={...S.modalData,editId:null};
+  renderModal();
+}
+
+function isIndisp(tipo,mezzoId,date){
+  return (S.data.indisponibili||[]).some(x=>
+    x.tipo===tipo&&x.mezzo_id===mezzoId&&x.data_inizio<=date&&x.data_fine>=date);
+}
+
+function getIndispMotivo(tipo,mezzoId,date){
+  const x=(S.data.indisponibili||[]).find(x=>
+    x.tipo===tipo&&x.mezzo_id===mezzoId&&x.data_inizio<=date&&x.data_fine>=date);
+  return x?x.motivo:'';
+}
 // ══════════ EXCEL EXPORT ══════════
 function showExcelExportDialog(){S.modal='excel-export';S.modalData={};renderModal();}
 function buildModal_excelExport(){
@@ -1838,7 +2540,7 @@ function setSearch(key,val){S.search[key]=val;const m=document.querySelector('.m
 
 // ══════════ EVENT HANDLER ══════════
 document.addEventListener('click',function(e){
-  const btn=e.target.closest('[data-act]');if(!btn)return;
+  const btn=e.target.closest('[data-act],[data-ev]');if(!btn)return;
   const act=btn.dataset.act;
   if(act==='tab'){S.tab=btn.dataset.tab;render();return;}
   if(act==='prevDay'){let d=offDate(S.date,-1);while(isWeekend(d))d=offDate(d,-1);S.date=d;refreshGiorn();return;}
@@ -1855,6 +2557,10 @@ document.addEventListener('click',function(e){
   if(act==='delAssenza'){confirm2('Eliminare questa assenza?',()=>{S.data.assenze=(S.data.assenze||[]).filter(x=>x.id!==btn.dataset.id);scheduleSave(S.data);const m=document.querySelector('.main');if(m)m.innerHTML=renderAssenze();});return;}
   if(act==='newMotrice'){showModal('motrice',{});return;}
   if(act==='editMotrice'){const a=(S.data.motrici||[]).find(x=>x.id===btn.dataset.id);if(a)showModal('motrice',{...a});return;}
+  if(btn.dataset.ev==='gotoday'){S.tab='giornaliero';S.date=btn.dataset.date;render();return;}
+  if(btn.dataset.ev==='delriut'){deleteRiutilizzo(btn.dataset.id);return;}
+  if(act==='indispMotrice'){const a=(S.data.motrici||[]).find(x=>x.id===btn.dataset.id);if(a)showIndispModal('motrice',a.id);return;}
+  if(act==='indispRimorchio'){const a=(S.data.rimorchi||[]).find(x=>x.id===btn.dataset.id);if(a)showIndispModal('rimorchio',a.id);return;}
   if(act==='delMotrice'){confirm2('Eliminare questa motrice?',()=>{S.data.motrici=(S.data.motrici||[]).filter(x=>x.id!==btn.dataset.id);scheduleSave(S.data);const m=document.querySelector('.main');if(m)m.innerHTML=renderMotrici();});return;}
   if(act==='newRimorchio'){showModal('rimorchio',{});return;}
   if(act==='editRimorchio'){const a=(S.data.rimorchi||[]).find(x=>x.id===btn.dataset.id);if(a)showModal('rimorchio',{...a});return;}
