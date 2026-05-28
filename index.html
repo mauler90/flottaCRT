@@ -1138,8 +1138,9 @@ function renderLogin(){
 async function doLogin(){
   const u=($id('l-user').value||'').trim();
   const p=($id('l-pass').value||'').trim();
-  const found=(S.data&&S.data.users||[{id:'u1',username:'admin',password:'admin',role:'admin',nome:'Amministratore'}]).find(x=>x.username===u&&x.password===p);
-  if(!found){const e=$id('login-err');e.textContent='Username o password errati';e.style.display='block';return;}
+  const users=S.data&&S.data.users||[{id:'u1',username:'admin',password:'admin',role:'admin',nome:'Amministratore'}];
+  const found=users.find(x=>x.username===u);
+  if(!found||!checkPassword(p,found.password)){const e=$id('login-err');e.textContent='Username o password errati';e.style.display='block';return;}
   localStorage.setItem(LS_SESS,JSON.stringify(found));
   S.user=found;S.phase='app';if(S.cfg&&S.cfg.mode==='gist')startSync();render();
 }
